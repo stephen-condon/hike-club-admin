@@ -68,6 +68,25 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "502":
           $ref: "#/components/responses/UpstreamError"
+  /api/orphans:
+    get:
+      summary: Slugs with stored objects but no location
+      description: >
+        Objects left behind when a location was removed from the mapping.
+        Removing a location does not delete its hike record or trail map, so
+        they remain recoverable — re-adding the location restores them. Read
+        only: there is deliberately no endpoint that deletes them.
+      operationId: listOrphans
+      responses:
+        "200":
+          description: The stranded slugs, sorted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Orphans"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
   /api/hikes:
     get:
       summary: One row per location, with its scheduled hike if there is one
@@ -298,6 +317,27 @@ components:
           type: string
           description: Always `hikes/{id}/map.png`.
           pattern: "^hikes/[a-z0-9]+(-[a-z0-9]+)*/map\\.png$"
+    Orphan:
+      type: object
+      required: [slug, hasRecord, hasMap]
+      additionalProperties: false
+      description: >
+        One slug whose objects are stranded. At least one of `hasRecord` and
+        `hasMap` is true, or the slug would not appear.
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        hasRecord:
+          type: boolean
+          description: A record exists at `hikes/{slug}.json`.
+        hasMap:
+          type: boolean
+          description: A trail map exists at `hikes/{slug}/map.png`.
+    Orphans:
+      type: array
+      description: Stranded slugs, sorted by slug.
+      items:
+        $ref: "#/components/schemas/Orphan"
     HikeSummary:
       type: object
       required: [shortName, fullName, scheduled, stale, hasMap]

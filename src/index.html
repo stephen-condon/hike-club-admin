@@ -121,6 +121,9 @@ input[type=date], input[type=time], input[type=text], input[type=number] {
 .note.bad { color: var(--alert); }
 .loc-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
 .loc-row input { margin: 0; }
+.loc-row input[readonly] { background: none; color: var(--sage); border-style: dashed; }
+.orphan { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--rule); font-size: 0.95rem; }
+.orphan .slug { font-family: ui-monospace, monospace; }
 @media (prefers-reduced-motion: no-preference) {
   .saved { animation: flash 900ms ease-out; }
 }
@@ -138,6 +141,12 @@ input[type=date], input[type=time], input[type=text], input[type=number] {
   </div>
   <ul id="list" aria-labelledby="all-hikes"></ul>
   <p class="note" id="status"></p>
+
+  <section id="orphans" hidden>
+    <div class="bar"><h2 id="orphan-head">Left behind</h2></div>
+    <ul id="orphan-list" aria-labelledby="orphan-head"></ul>
+    <p class="note">These objects have no location in the list. Re-add the location to recover them — nothing here has been deleted.</p>
+  </section>
 </main>
 
 <dialog id="hike-sheet">
@@ -193,6 +202,7 @@ const BLAZE = {
 const $ = (id) => document.getElementById(id);
 const status = $("status");
 let hikes = [];
+let orphans = [];
 let locations = [];
 let editing = null;
 
@@ -318,11 +328,34 @@ function renderList() {
   }
 }
 
+// @spec LOC-014
+function renderOrphans() {
+  const list = $("orphan-list");
+  list.replaceChildren();
+  $("orphans").hidden = orphans.length === 0;
+
+  for (const orphan of orphans) {
+    const item = document.createElement("li");
+    item.className = "orphan";
+    const slug = document.createElement("span");
+    slug.className = "slug";
+    slug.textContent = orphan.slug;
+    const what = document.createElement("span");
+    what.className = "detail";
+    what.textContent = orphan.hasRecord && orphan.hasMap
+      ? "hike and map"
+      : orphan.hasRecord ? "hike, no map" : "map, no hike";
+    item.append(slug, what);
+    list.append(item);
+  }
+}
+
 async function load() {
   try {
-    hikes = await api("/api/hikes");
+    [hikes, orphans] = await Promise.all([api("/api/hikes"), api("/api/orphans")]);
     renderNext();
     renderList();
+    renderOrphans();
     say(status, "");
   } catch (error) {
     say(status, `Could not load hikes. ${error.message}`, true);
@@ -414,7 +447,8 @@ async function unschedule() {
   }
 }
 
-function locationRow(location) {
+// @spec LOC-015
+function locationRow(location, existing) {
   const row = document.createElement("div");
   row.className = "loc-row";
 
@@ -423,6 +457,12 @@ function locationRow(location) {
   short.value = location.short_name;
   short.placeholder = "danada-equestrian-center";
   short.setAttribute("aria-label", "Short name used in links");
+  // The short name is also the R2 key, so renaming in place would strand the
+  // location's hike and map. Renaming is remove-and-re-add, deliberately.
+  short.readOnly = Boolean(existing);
+  if (existing) {
+    short.title = "The short name is also the storage key. To rename, remove this location and add it again.";
+  }
 
   const full = document.createElement("input");
   full.type = "text";
@@ -445,7 +485,7 @@ async function openLocations() {
   rows.replaceChildren();
   try {
     locations = await api("/api/locations");
-    for (const location of locations) rows.append(locationRow(location));
+    for (const location of locations) rows.append(locationRow(location, true));
     $("loc-sheet").showModal();
   } catch (error) {
     say(status, error.message, true);
@@ -488,7 +528,7 @@ $("loc-form").addEventListener("submit", (event) => {
 });
 $("edit-locations").addEventListener("click", openLocations);
 $("add-loc").addEventListener("click", () => {
-  $("loc-rows").append(locationRow({ short_name: "", full_name: "" }));
+  $("loc-rows").append(locationRow({ short_name: "", full_name: "" }, false));
 });
 
 load();

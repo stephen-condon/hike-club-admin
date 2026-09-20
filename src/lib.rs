@@ -41,6 +41,10 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let body = req.bytes().await?;
             respond(admin::put_locations(&store, &body).await)
         })
+        .get_async("/api/orphans", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::list_orphans(&store).await)
+        })
         .get_async("/api/hikes", |_, ctx| async move {
             let store = store(&ctx)?;
             respond(admin::list_hikes(&store, chrono::Utc::now()).await)

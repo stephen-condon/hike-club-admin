@@ -3,10 +3,13 @@
 //!
 //! Handlers return [`Outcome`], a status plus an already-serialized body, so
 //! `lib.rs` stays pure translation into `worker::Response`.
-use crate::models::{ErrorBody, HikeLocation, HikeRecord, HikeRequest, HikeSummary, LOCATIONS_KEY};
+use crate::models::{
+    ErrorBody, HikeLocation, HikeRecord, HikeRequest, HikeSummary, LOCATIONS_KEY, OrphanedObject,
+};
 use crate::store::AdminStore;
 use crate::validate::{self, Invalid};
 use chrono::{DateTime, Utc};
+use std::collections::BTreeMap;
 
 /// What a handler decided: an HTTP status and the bytes to send with it.
 #[derive(Debug, Clone, PartialEq)]
@@ -254,6 +257,55 @@ pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome 
     }
 
     Outcome::json(200, &summaries)
+}
+
+/// Slugs with stored objects but no location. Removing a location leaves its
+/// record and map in the bucket — recoverable, but invisible until now. Read
+/// only: recovery is re-adding the location, which is why nothing here deletes.
+// @spec LOC-013
+pub async fn list_orphans(store: &impl AdminStore) -> Outcome {
+    let locations = match read_locations(store).await {
+        Ok(l) => l,
+        Err(outcome) => return outcome,
+    };
+    let keys = match store.list("hikes/").await {
+        Ok(k) => k,
+        Err(e) => return upstream(e),
+    };
+
+    // BTreeMap so the rows come out sorted by slug without a second pass.
+    let mut stranded: BTreeMap<String, OrphanedObject> = BTreeMap::new();
+    for key in &keys {
+        let Some(rest) = key.strip_prefix("hikes/") else {
+            continue;
+        };
+        // Exactly the two shapes this worker writes; anything else is not ours.
+        let (slug, is_map) = match rest.strip_suffix(".json") {
+            Some(slug) => (slug, false),
+            None => match rest.strip_suffix("/map.png") {
+                Some(slug) => (slug, true),
+                None => continue,
+            },
+        };
+        if locations.iter().any(|l| l.short_name == slug) {
+            continue;
+        }
+        let entry = stranded
+            .entry(slug.to_string())
+            .or_insert_with(|| OrphanedObject {
+                slug: slug.to_string(),
+                has_record: false,
+                has_map: false,
+            });
+        if is_map {
+            entry.has_map = true;
+        } else {
+            entry.has_record = true;
+        }
+    }
+
+    let rows: Vec<OrphanedObject> = stranded.into_values().collect();
+    Outcome::json(200, &rows)
 }
 
 #[cfg(test)]
@@ -737,5 +789,75 @@ mod tests {
     async fn a_corrupt_record_fails_the_list_rather_than_lying_about_it() {
         let store = seeded().with_json("hikes/cantigny-park.json", "{oops");
         assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+    }
+
+    #[tokio::test]
+    // @spec LOC-013
+    async fn no_orphans_when_every_stored_slug_has_a_location() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        assert!(summaries(&list_orphans(&store).await).is_empty());
+    }
+
+    /// The case the section exists for: a location was removed and its hike is
+    /// still in the bucket, reachable again only by re-adding the location.
+    #[tokio::test]
+    // @spec LOC-013
+    async fn orphans_report_a_record_whose_location_was_removed() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_locations(&store, b"[]").await;
+
+        let rows = summaries(&list_orphans(&store).await);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["slug"], "cantigny-park");
+        assert_eq!(rows[0]["hasRecord"], true);
+        assert_eq!(rows[0]["hasMap"], false);
+    }
+
+    #[tokio::test]
+    // @spec LOC-013
+    async fn orphans_report_a_map_with_no_record_and_no_location() {
+        let store = seeded();
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        put_locations(&store, b"[]").await;
+
+        let rows = summaries(&list_orphans(&store).await);
+        assert_eq!(rows[0]["hasRecord"], false);
+        assert_eq!(rows[0]["hasMap"], true);
+    }
+
+    #[tokio::test]
+    // @spec LOC-013
+    async fn orphans_report_both_objects_and_sort_by_slug() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        put_hike(&store, "danada-equestrian-center", REQUEST.as_bytes()).await;
+        put_locations(&store, b"[]").await;
+
+        let rows = summaries(&list_orphans(&store).await);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["slug"], "cantigny-park");
+        assert_eq!(rows[0]["hasRecord"], true);
+        assert_eq!(rows[0]["hasMap"], true);
+        assert_eq!(rows[1]["slug"], "danada-equestrian-center");
+        assert_eq!(rows[1]["hasMap"], false);
+    }
+
+    /// Listing orphans must never be mistaken for a way to reach live data.
+    #[tokio::test]
+    // @spec LOC-013
+    async fn a_slug_still_in_the_mapping_is_never_an_orphan() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        assert!(summaries(&list_orphans(&store).await).is_empty());
+    }
+
+    #[tokio::test]
+    // @spec LOC-013, STORE-006
+    async fn orphan_listing_storage_failures_surface_as_502() {
+        assert_eq!(list_orphans(&InMemoryStore::failing()).await.status, 502);
     }
 }

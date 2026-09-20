@@ -88,6 +88,18 @@ pub struct HikeSummary {
     pub end: Option<String>,
 }
 
+/// One slug with stored objects but no entry in the location mapping. Its
+/// objects are stranded: removing a location leaves them behind rather than
+/// deleting them, so re-adding the location is what recovers them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrphanedObject {
+    pub slug: String,
+    #[serde(rename = "hasRecord")]
+    pub has_record: bool,
+    #[serde(rename = "hasMap")]
+    pub has_map: bool,
+}
+
 /// The body of every non-2xx response.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ErrorBody {

@@ -5,8 +5,10 @@ hikes, which doubles as the allowlist of R2 keys this worker may write.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
-from existing code; behavior fully observed, no gaps found.
+**AUDITED** — last audited 2026-09-20 (git SHA `2a345f6`). Specs verified
+against code. Two of three deferred questions closed by building: stranded
+objects are now listed, and renaming is prevented rather than silently
+orphaning.
 
 ## References
 
@@ -17,10 +19,11 @@ from existing code; behavior fully observed, no gaps found.
 - `docs/intent/location-mapping/location-mapping-design.md`
 
 ### EARS
-- `docs/intent/location-mapping/location-mapping-specs.md` (12 specs)
+- `docs/intent/location-mapping/location-mapping-specs.md` (15 specs)
 
 ### Tests
 - `src/admin.rs:529-600` — read, replace, allowlist effect, orphaning
+- `src/admin.rs:695-760` — orphan detection, both object kinds, sorting
 - `src/admin.rs:674-687` — 502 paths
 - `src/validate.rs:426-470` — list validation rules
 
@@ -29,7 +32,9 @@ from existing code; behavior fully observed, no gaps found.
 - `src/admin.rs:175-201` — `get_locations`, `put_locations`
 - `src/validate.rs:159-193` — `validate_locations`
 - `src/models.rs:51-61` — `HikeLocation`, `LOCATIONS_KEY`
-- `src/index.html:410-465` — locations editor
+- `src/admin.rs:247-292` — `list_orphans`
+- `src/index.html:410-465` — locations editor, `short_name` locked on existing rows
+- `src/index.html:316-338` — the "Left behind" section
 
 ## Architecture
 
@@ -51,8 +56,9 @@ security allowlist.
 | Storage and reading | LOC-001 to -003 | 3 | 0 | 0 |
 | Validation | LOC-004 to -008 | 5 | 0 | 0 |
 | Consequences and UI | LOC-009 to -012 | 4 | 0 | 0 |
+| Stranded objects | LOC-013 to -015 | 3 | 0 | 0 |
 
-**Summary:** 12 of 12 active specs implemented; 0 deferred.
+**Summary:** 15 of 15 active specs implemented; 0 deferred.
 
 ## Key Findings
 
@@ -65,11 +71,13 @@ security allowlist.
    schedulable yet," not an error.
 3. **Removal orphans rather than deletes** — dropping a location leaves its
    record and map in the bucket, so re-adding it restores the hike intact
-   (`admin.rs:587-600`).
+   (`admin.rs:587-600`). Those objects are now visible via `GET /api/orphans`;
+   nothing deletes them, because the orphan *is* the undo.
 4. **Whole-list replacement** — there is no per-location add or remove endpoint;
    the editor sends the entire list every time.
-5. **LOC-012 has no test citing it** — the editor's whole-list submit is
-   admin-page behavior and the project has no JavaScript test harness.
+5. **Three specs have no test citing them** — LOC-012, LOC-014 and LOC-015 are
+   all admin-page behavior, and the project has no JavaScript test harness.
+   LOC-013, the server half of orphan detection, has six.
 
 ## Work Required
 
@@ -80,7 +88,6 @@ _None._
 _None._
 
 ### Nice to Have
-1. Orphaned records and maps from removed locations are invisible in the UI and
-   never reclaimed. Consider surfacing them.
-2. Whole-list replacement has a last-writer-wins race. Single-user today, so it
-   has never mattered.
+1. Whole-list replacement has a last-writer-wins race. Single-user today, so it
+   has never mattered; the recorded answer is R2 conditional writes if a second
+   admin ever appears.

@@ -56,6 +56,35 @@ Removing a location does not delete its hike record or trail map. Those are
 separate objects under a different prefix; orphaning them is recoverable and
 deleting them is not. Re-adding the location brings the hike back intact.
 
+## Stranded Objects
+
+Because removal orphans rather than deletes, the bucket accumulates objects with
+no location. `GET /api/orphans` reports them: every slug under `hikes/` that has
+a record or a map but no entry in the mapping, sorted, with a flag for each
+object present. The admin page lists them read-only under "Left behind".
+
+There is deliberately no endpoint that deletes an orphan. Recovery is re-adding
+the location, which restores the hike intact; a delete would remove the thing
+that makes removal safe, and it would need a write path whose key is *not* in
+the allowlist — the inverse of every other write this worker performs.
+
+## Renaming
+
+`short_name` is the URL slug and the R2 key component, so changing it on an
+existing location would leave that location's record and map under the old key
+and present the location as unscheduled. It would also break every
+`/hike/{slug}` link and printed QR code, which makes a rename semantically a new
+location rather than an edit.
+
+The editor therefore locks `short_name` on existing rows and leaves it editable
+on new ones. Renaming is remove-and-re-add, performed deliberately, with the old
+objects visible under "Left behind" until the admin decides what to do.
+
+The API stays permissive: `PUT /api/locations` still accepts any valid list,
+including one that renames an entry. Enforcing immutability server-side would
+mean diffing the submitted list against the stored one — real logic for an
+invariant the editor already prevents.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives Considered | Rationale |
@@ -66,6 +95,9 @@ deleting them is not. Re-adding the location brings the hike back intact.
 | Removing a location | Leaves its record and map in place | Cascade-delete both objects | Orphaning is recoverable; deleting is not. A mis-click should not destroy a hike. |
 | Duplicate detection | Reject the whole list | Keep the first; keep the last | A duplicate short name means two display names competing for one R2 key. There is no safe automatic answer. |
 | Entry cap | 200 | No cap; a smaller cap | Far beyond a club's real roster, while still bounding the object the public API must parse. |
+| Orphan visibility | List them read-only | Leave them invisible; add a delete endpoint | The admin could not previously tell a hike was recoverable. A delete would need a write path outside the allowlist and would remove the undo that orphaning provides. |
+| Renaming a location | Lock `short_name` on existing rows | Allow it; implement rename as a copy-and-delete move | A rename already breaks `/hike/{slug}` links and QR codes, so it is a new location. A move would add partially-failing multi-object logic and still break those links. |
+| Rename enforcement | Editor only, API stays permissive | Reject renames server-side | Server-side would require diffing against stored state. The editor is the only writer, and the API contract stays a simple whole-list replacement. |
 
 ## Open Questions & Future Decisions
 
@@ -75,13 +107,17 @@ deleting them is not. Re-adding the location brings the hike back intact.
 2. ✅ Removing a location orphans rather than deletes
    (`admin.rs:587-600` asserts it).
 
+3. ✅ Orphaned objects are now listed by `GET /api/orphans` and shown read-only
+   under "Left behind" (LOC-013, LOC-014). Nothing deletes them: re-adding the
+   location is the recovery.
+4. ✅ Renaming is prevented in the editor rather than handled, because a rename
+   already breaks existing links (LOC-015).
+
 ### Deferred
-1. Orphaned records and maps are invisible: nothing lists keys that no longer
-   correspond to a location, and nothing reclaims them.
-2. Whole-list replacement is last-writer-wins. With one admin this has never
-   mattered; a second concurrent editor would silently lose changes.
-3. `short_name` is used both as a URL slug and as an R2 key component. Renaming
-   a location therefore orphans its objects rather than moving them.
+1. Whole-list replacement is last-writer-wins. One admin behind Access, so two
+   concurrent editors cannot currently exist. If a second admin ever appears,
+   the answer is R2 conditional writes — carry the `ETag` from the GET and send
+   `If-Match` on the PUT, surfacing 412 as a conflict.
 
 ## References
 

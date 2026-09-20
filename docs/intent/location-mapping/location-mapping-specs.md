@@ -24,3 +24,6 @@ and gates every write to the bucket. Prefix `LOC`; see
 - [x] **LOC-010**: When a location is added to the mapping, the system shall thereby make that location schedulable, with no further step required.
 - [x] **LOC-011**: When a location is removed from the mapping, the system shall leave its hike record and trail map in the bucket, so re-adding the location restores them.
 - [x] **LOC-012**: When the admin saves the locations editor, the admin page shall send the entire list, replacing the stored mapping rather than patching it.
+- [x] **LOC-013**: The system shall report the slugs that have a stored hike record or trail map but no entry in the location mapping, stating for each whether a record, a map, or both are present.
+- [x] **LOC-014**: While any orphaned slug exists, the admin page shall list them read-only and state that re-adding the location recovers them.
+- [x] **LOC-015**: When the admin edits an existing location, the admin page shall prevent its `short_name` from being changed, since the name is also the object key and a rename would strand the location's record and map.

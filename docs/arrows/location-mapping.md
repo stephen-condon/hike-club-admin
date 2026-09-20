@@ -68,6 +68,8 @@ security allowlist.
    (`admin.rs:587-600`).
 4. **Whole-list replacement** — there is no per-location add or remove endpoint;
    the editor sends the entire list every time.
+5. **LOC-012 has no test citing it** — the editor's whole-list submit is
+   admin-page behavior and the project has no JavaScript test harness.
 
 ## Work Required
 

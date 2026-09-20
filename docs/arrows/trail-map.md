@@ -66,6 +66,8 @@ when the hike is.
    existing maps run 280 KB to 1.1 MB.
 4. **Content-type parameters tolerated** — `image/PNG; charset=binary` passes
    (`validate.rs:198-207`), because browsers append them.
+5. **MAP-011 has no test citing it** — the preview cache-bust is admin-page
+   behavior and the project has no JavaScript test harness.
 
 ## Work Required
 

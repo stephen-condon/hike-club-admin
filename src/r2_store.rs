@@ -44,6 +44,7 @@ impl AdminStore for R2Store {
         self.bucket.delete(key).await.map_err(|e| e.to_string())
     }
 
+    // @spec STORE-005
     async fn list(&self, prefix: &str) -> Result<Vec<String>, String> {
         let mut keys = Vec::new();
         let mut cursor: Option<String> = None;

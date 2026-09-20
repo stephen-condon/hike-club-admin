@@ -85,6 +85,10 @@ when a hike is, and surface the one failure mode that object can silently cause.
    (`index.html:312`) so the save path can flash the row (`:393`). Works; couples
    row DOM to fetched data.
 6. **`const status` shadows `window.status`** (`index.html:194`). Harmless today.
+7. **Seven specs have no test citing them** — HIKE-UI-001 through -006 and
+   HIKE-STALE-004 all describe admin-page behavior, and the project has no
+   JavaScript test harness. They are annotated in `src/index.html` and marked
+   `[x]` on observed behavior, not on test coverage.
 
 ## Work Required
 

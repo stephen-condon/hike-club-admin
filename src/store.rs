@@ -3,6 +3,7 @@
 //! over byte blobs — so the real implementation in `r2_store` is a thin
 //! translation and all the interesting logic stays in `admin`, where it is
 //! testable against [`InMemoryStore`].
+// @spec STORE-001, STORE-002, STORE-004, STORE-009
 pub trait AdminStore {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, String>;
     async fn put(&self, key: &str, body: Vec<u8>, content_type: &str) -> Result<(), String>;
@@ -21,6 +22,7 @@ pub mod fake {
     /// In-memory [`AdminStore`] for tests. `RefCell` rather than a lock because
     /// the worker runtime is single-threaded and so are the tests.
     #[derive(Default)]
+    // @spec STORE-003
     pub struct InMemoryStore {
         objects: RefCell<BTreeMap<String, (Vec<u8>, String)>>,
         /// When set, every operation fails with this message — the seam for
@@ -114,6 +116,7 @@ mod tests {
     use super::fake::InMemoryStore;
 
     #[tokio::test]
+    // @spec STORE-001, STORE-004
     async fn round_trips_an_object() {
         let store = InMemoryStore::new();
         store
@@ -131,12 +134,14 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-001
     async fn get_is_none_for_a_missing_key() {
         let store = InMemoryStore::new();
         assert_eq!(store.get("nope").await.unwrap(), None);
     }
 
     #[tokio::test]
+    // @spec STORE-009
     async fn delete_removes_and_is_idempotent() {
         let store = InMemoryStore::new().with_json("hikes/a.json", "{}");
         store.delete("hikes/a.json").await.unwrap();
@@ -146,6 +151,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-001
     async fn list_filters_by_prefix() {
         let store = InMemoryStore::new()
             .with_json("hikes/a.json", "{}")
@@ -157,6 +163,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-003
     async fn a_failing_store_fails_every_operation() {
         let store = InMemoryStore::failing();
         assert!(store.get("k").await.is_err());

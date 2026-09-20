@@ -17,6 +17,7 @@ pub struct Outcome {
 }
 
 impl Outcome {
+    // @spec STORE-008, STORE-010
     pub fn json(status: u16, value: &impl serde::Serialize) -> Self {
         Self {
             status,
@@ -58,10 +59,12 @@ impl From<Invalid> for Outcome {
 
 /// R2 failures are the caller's 502 — the admin worker is a proxy for storage,
 /// and there is nothing the browser can do but retry.
+// @spec STORE-006
 fn upstream(message: String) -> Outcome {
     Outcome::error(502, format!("storage error: {message}"))
 }
 
+// @spec LOC-001, LOC-002, LOC-003
 async fn read_locations(store: &impl AdminStore) -> Result<Vec<HikeLocation>, Outcome> {
     let bytes = store.get(LOCATIONS_KEY).await.map_err(upstream)?;
     // A missing mapping is an empty one: the bucket starts out without the
@@ -74,6 +77,7 @@ async fn read_locations(store: &impl AdminStore) -> Result<Vec<HikeLocation>, Ou
         .map_err(|e| Outcome::error(502, format!("stored locations are not valid JSON: {e}")))
 }
 
+// @spec STORE-007
 async fn load_record(store: &impl AdminStore, slug: &str) -> Result<Option<HikeRecord>, Outcome> {
     let bytes = store.get(&HikeRecord::key(slug)).await.map_err(upstream)?;
     let Some(bytes) = bytes else {
@@ -84,6 +88,7 @@ async fn load_record(store: &impl AdminStore, slug: &str) -> Result<Option<HikeR
         .map_err(|e| Outcome::error(502, format!("stored record is not valid JSON: {e}")))
 }
 
+// @spec HIKE-REC-008
 pub async fn get_hike(store: &impl AdminStore, slug: &str) -> Outcome {
     if let Err(invalid) = validate::validate_slug(slug) {
         return invalid.into();
@@ -95,6 +100,7 @@ pub async fn get_hike(store: &impl AdminStore, slug: &str) -> Outcome {
     }
 }
 
+// @spec HIKE-REC-002, TRUST-008
 pub async fn put_hike(store: &impl AdminStore, slug: &str, body: &[u8]) -> Outcome {
     let locations = match read_locations(store).await {
         Ok(l) => l,
@@ -123,6 +129,7 @@ pub async fn put_hike(store: &impl AdminStore, slug: &str, body: &[u8]) -> Outco
 
 /// Deletes the record only. The trail map is left in place so rescheduling the
 /// same location doesn't need a re-upload.
+// @spec HIKE-REC-009, HIKE-REC-010
 pub async fn delete_hike(store: &impl AdminStore, slug: &str) -> Outcome {
     if let Err(invalid) = validate::validate_slug(slug) {
         return invalid.into();
@@ -133,6 +140,7 @@ pub async fn delete_hike(store: &impl AdminStore, slug: &str) -> Outcome {
     }
 }
 
+// @spec MAP-008, MAP-009
 pub async fn get_map(store: &impl AdminStore, slug: &str) -> Outcome {
     if let Err(invalid) = validate::validate_slug(slug) {
         return invalid.into();
@@ -147,6 +155,7 @@ pub async fn get_map(store: &impl AdminStore, slug: &str) -> Outcome {
 /// Maps are uploaded once per location and shared by every record for it, so
 /// this is separate from scheduling: replacing a map doesn't touch the hike,
 /// and rescheduling doesn't need a re-upload.
+// @spec MAP-006, MAP-007, MAP-010
 pub async fn put_map(
     store: &impl AdminStore,
     slug: &str,
@@ -182,6 +191,7 @@ pub async fn get_locations(store: &impl AdminStore) -> Outcome {
 /// Replaces the whole mapping. Removing a location leaves its record and map
 /// behind — they're separate objects, and orphaning them is recoverable while
 /// deleting them is not.
+// @spec LOC-008, LOC-011
 pub async fn put_locations(store: &impl AdminStore, body: &[u8]) -> Outcome {
     let locations: Vec<HikeLocation> = match serde_json::from_slice(body) {
         Ok(l) => l,
@@ -203,6 +213,7 @@ pub async fn put_locations(store: &impl AdminStore, body: &[u8]) -> Outcome {
 /// One row per known location, with its hike if one is scheduled. A single
 /// prefix list answers "scheduled?" and "has a map?" for every location, so
 /// only the records that actually exist get fetched.
+// @spec HIKE-LIST-001, HIKE-LIST-002, HIKE-LIST-003, HIKE-LIST-004, HIKE-LIST-005, HIKE-STALE-003
 pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome {
     let locations = match read_locations(store).await {
         Ok(l) => l,
@@ -270,6 +281,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-REC-001, HIKE-REC-008
     async fn put_then_get_round_trips_a_hike() {
         let store = seeded();
         let put = put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -284,6 +296,7 @@ mod tests {
     /// The stored bytes are what `hike-club-api` reads, so assert on them
     /// directly rather than on the response.
     #[tokio::test]
+    // @spec HIKE-REC-001, TRUST-007
     async fn put_writes_the_record_to_the_key_the_public_api_reads() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -299,6 +312,7 @@ mod tests {
     /// Rescheduling overwrites in place — same key, same id — so existing
     /// /hike/{slug} links and QR codes keep working.
     #[tokio::test]
+    // @spec HIKE-REC-002
     async fn rescheduling_overwrites_in_place() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -314,6 +328,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec LOC-009
     async fn put_rejects_an_unknown_location() {
         let outcome = put_hike(&seeded(), "somewhere-else", REQUEST.as_bytes()).await;
         assert_eq!(outcome.status, 400);
@@ -327,6 +342,7 @@ mod tests {
 
     /// A slug that could escape its key prefix must never reach the store.
     #[tokio::test]
+    // @spec TRUST-004, TRUST-008
     async fn put_rejects_a_path_traversing_slug_without_writing() {
         let store = seeded();
         let outcome = put_hike(&store, "../secrets", REQUEST.as_bytes()).await;
@@ -341,6 +357,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-REC-005
     async fn put_rejects_an_invalid_body() {
         let bad = REQUEST.replace("\"Purple\"", "");
         let outcome = put_hike(&seeded(), "cantigny-park", bad.as_bytes()).await;
@@ -348,17 +365,20 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-REC-008
     async fn get_is_404_for_an_unscheduled_location() {
         let outcome = get_hike(&seeded(), "danada-equestrian-center").await;
         assert_eq!(outcome.status, 404);
     }
 
     #[tokio::test]
+    // @spec TRUST-009
     async fn get_rejects_an_invalid_slug() {
         assert_eq!(get_hike(&seeded(), "Not A Slug").await.status, 400);
     }
 
     #[tokio::test]
+    // @spec HIKE-REC-009, HIKE-REC-010
     async fn delete_removes_the_record_and_is_idempotent() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -372,11 +392,13 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec TRUST-009
     async fn delete_rejects_an_invalid_slug() {
         assert_eq!(delete_hike(&seeded(), "../secrets").await.status, 400);
     }
 
     #[tokio::test]
+    // @spec STORE-006
     async fn storage_failures_surface_as_502() {
         let store = InMemoryStore::failing();
         assert_eq!(get_hike(&store, "cantigny-park").await.status, 502);
@@ -390,6 +412,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-007
     async fn corrupt_stored_json_is_502_not_a_panic() {
         let store = seeded().with_json("hikes/cantigny-park.json", "{oops");
         assert_eq!(get_hike(&store, "cantigny-park").await.status, 502);
@@ -407,6 +430,7 @@ mod tests {
     /// back to its embedded copy until this worker writes one. An absent
     /// mapping must not 500 — it just means nothing is writable yet.
     #[tokio::test]
+    // @spec LOC-002
     async fn a_missing_locations_object_reads_as_empty() {
         let store = InMemoryStore::new();
         let outcome = put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -417,6 +441,7 @@ mod tests {
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\nfake-but-png-enough";
 
     #[tokio::test]
+    // @spec MAP-007, MAP-008
     async fn put_then_get_round_trips_a_map() {
         let store = seeded();
         let put = put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
@@ -431,6 +456,7 @@ mod tests {
     /// The key must match what upload-hike.sh writes and what every record's
     /// mapKey points at, or the public API presigns a URL to nothing.
     #[tokio::test]
+    // @spec MAP-001, MAP-006
     async fn put_writes_the_shared_map_key() {
         let store = seeded();
         put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
@@ -447,6 +473,7 @@ mod tests {
 
     /// Replacing a map leaves the hike record alone, and vice versa.
     #[tokio::test]
+    // @spec MAP-010, HIKE-REC-009
     async fn map_and_record_are_independent() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -460,11 +487,13 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec MAP-009
     async fn get_map_is_404_when_none_is_uploaded() {
         assert_eq!(get_map(&seeded(), "cantigny-park").await.status, 404);
     }
 
     #[tokio::test]
+    // @spec TRUST-004, TRUST-008
     async fn map_endpoints_reject_invalid_slugs() {
         assert_eq!(get_map(&seeded(), "../secrets").await.status, 400);
         let store = seeded();
@@ -474,12 +503,14 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec MAP-006
     async fn put_map_rejects_an_unknown_location() {
         let outcome = put_map(&seeded(), "somewhere-else", Some("image/png"), PNG.to_vec()).await;
         assert_eq!(outcome.status, 400);
     }
 
     #[tokio::test]
+    // @spec MAP-003, MAP-005
     async fn put_map_rejects_the_wrong_type_and_oversized_bodies() {
         let store = seeded();
         assert_eq!(
@@ -505,6 +536,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-006
     async fn map_storage_failures_surface_as_502() {
         let store = InMemoryStore::failing();
         assert_eq!(get_map(&store, "cantigny-park").await.status, 502);
@@ -527,6 +559,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec LOC-001
     async fn get_locations_returns_the_stored_mapping() {
         let outcome = get_locations(&seeded()).await;
         assert_eq!(outcome.status, 200);
@@ -536,6 +569,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec LOC-002
     async fn get_locations_is_empty_before_anything_is_written() {
         let outcome = get_locations(&InMemoryStore::new()).await;
         assert_eq!(outcome.status, 200);
@@ -545,6 +579,7 @@ mod tests {
     /// Adding a location is what makes it writable — the mapping is the
     /// allowlist, so this is the step that unblocks PUT /api/hikes/{slug}.
     #[tokio::test]
+    // @spec LOC-010
     async fn adding_a_location_makes_it_schedulable() {
         let store = seeded();
         assert_eq!(
@@ -565,6 +600,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec LOC-004, LOC-006, LOC-008
     async fn put_locations_rejects_invalid_lists() {
         let store = seeded();
         assert_eq!(put_locations(&store, b"not json").await.status, 400);
@@ -587,6 +623,7 @@ mod tests {
     /// Removing a location orphans its record rather than deleting it, so the
     /// hike comes back intact if the location is re-added.
     #[tokio::test]
+    // @spec LOC-011
     async fn removing_a_location_leaves_its_objects_alone() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -600,6 +637,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-LIST-001
     async fn list_reports_a_row_per_location_scheduled_or_not() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -617,6 +655,7 @@ mod tests {
     /// The row's blaze colour comes from the trail name, so the summary carries
     /// it and the list doesn't need a GET per location to draw itself.
     #[tokio::test]
+    // @spec HIKE-LIST-003
     async fn list_carries_the_first_trail_for_the_blaze() {
         let store = seeded();
         let two_trails = REQUEST.replace(r#"["Purple"]"#, r#"["Purple","Green"]"#);
@@ -631,6 +670,7 @@ mod tests {
     /// passed makes the public API serve the *last* hike's observed weather as
     /// though it were current, silently.
     #[tokio::test]
+    // @spec HIKE-STALE-001
     async fn list_flags_a_record_whose_end_has_passed() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
@@ -643,6 +683,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-STALE-003
     async fn an_unscheduled_location_is_never_stale() {
         let rows = summaries(&list_hikes(&seeded(), at("2099-01-01T00:00:00Z")).await);
         assert_eq!(rows[0]["scheduled"], false);
@@ -650,6 +691,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-LIST-002
     async fn list_reports_whether_a_map_is_uploaded() {
         let store = seeded();
         let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
@@ -663,6 +705,7 @@ mod tests {
     /// The map key is hikes/{slug}/map.png and the record is hikes/{slug}.json;
     /// one prefix list returns both, and neither may be mistaken for the other.
     #[tokio::test]
+    // @spec HIKE-LIST-005
     async fn a_map_alone_does_not_count_as_a_scheduled_hike() {
         let store = seeded();
         put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
@@ -672,6 +715,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec STORE-006
     async fn location_and_list_storage_failures_surface_as_502() {
         let store = InMemoryStore::failing();
         assert_eq!(get_locations(&store).await.status, 502);
@@ -680,6 +724,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec LOC-003
     async fn corrupt_stored_locations_are_502() {
         let store = InMemoryStore::new().with_json(LOCATIONS_KEY, "{oops");
         assert_eq!(get_locations(&store).await.status, 502);
@@ -687,6 +732,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // @spec HIKE-LIST-004
     async fn a_corrupt_record_fails_the_list_rather_than_lying_about_it() {
         let store = seeded().with_json("hikes/cantigny-park.json", "{oops");
         assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);

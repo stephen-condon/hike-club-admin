@@ -21,6 +21,7 @@ use worker::*;
 /// The admin page. One self-contained file, so it ships in the binary rather
 /// than needing a static-assets binding — the same trick hike-club-api uses for
 /// its location mapping.
+// @spec STORE-012
 const INDEX_HTML: &str = include_str!("index.html");
 
 #[event(fetch)]
@@ -28,6 +29,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
 
     Router::new()
+        // @spec STORE-013
         .get_async("/health", |_, _| async { Response::ok("ok") })
         .get_async("/", |_, _| async { Response::from_html(INDEX_HTML) })
         .get_async("/api/locations", |_, ctx| async move {
@@ -82,6 +84,7 @@ fn slug(ctx: &RouteContext<()>) -> &str {
     ctx.param("slug").map(String::as_str).unwrap_or_default()
 }
 
+// @spec STORE-011
 fn respond(outcome: Outcome) -> Result<Response> {
     let mut response = Response::from_bytes(outcome.body)?.with_status(outcome.status);
     response

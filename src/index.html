@@ -211,9 +211,11 @@ function say(element, message, bad) {
 
 // The stored offset is the hike's own local offset, so read the wall-clock
 // parts straight out of the string rather than shifting them into this browser.
+// @spec HIKE-UI-005
 const datePart = (t) => t.slice(0, 10);
 const timePart = (t) => t.slice(11, 16);
 
+// @spec HIKE-UI-004
 function rfc3339(date, time) {
   const offset = -new Date(`${date}T${time}:00`).getTimezoneOffset();
   const sign = offset < 0 ? "-" : "+";
@@ -237,6 +239,7 @@ function daysAway(hike) {
   return Math.round((start - midnight) / 86400000);
 }
 
+// @spec HIKE-UI-001, HIKE-UI-002
 function renderNext() {
   const upcoming = hikes
     .filter((h) => h.scheduled && !h.stale)
@@ -269,6 +272,7 @@ function renderNext() {
   section.append(heading, when);
 }
 
+// @spec HIKE-LIST-003, HIKE-STALE-004
 function renderList() {
   const list = $("list");
   list.replaceChildren();
@@ -324,6 +328,7 @@ async function load() {
   }
 }
 
+// @spec HIKE-UI-003, MAP-011
 async function openHike(hike) {
   editing = hike;
   $("hike-title").textContent = hike.fullName;
@@ -358,6 +363,7 @@ async function openHike(hike) {
   }
 }
 
+// @spec HIKE-UI-006, MAP-010
 async function saveHike() {
   const note = $("hike-note");
   const button = $("save-hike");
@@ -445,6 +451,7 @@ async function openLocations() {
   }
 }
 
+// @spec LOC-012
 async function saveLocations() {
   const note = $("loc-note");
   const body = [...$("loc-rows").children].map((row) => ({

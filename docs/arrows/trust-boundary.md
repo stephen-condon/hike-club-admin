@@ -69,6 +69,9 @@ key is constructed from a slug that has been proven well-formed *and* known.
 5. **Read paths check shape only** — `get_hike`, `get_map` and `delete_hike`
    call `validate_slug` but not `validate_known_slug`, so a well-formed unknown
    slug yields 404 rather than 400. Writes check both.
+6. **TRUST-006 has no test citing it** — that the request type has no `id` or
+   `mapKey` field is enforced by the type system; there is no runtime behavior
+   to assert. `contract.rs:242-261` covers the spec side instead.
 
 ## Work Required
 

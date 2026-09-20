@@ -26,6 +26,7 @@ pub struct HikeRecord {
 
 impl HikeRecord {
     /// The R2 key a record for `slug` is stored under.
+    // @spec HIKE-REC-001
     pub fn key(slug: &str) -> String {
         format!("hikes/{slug}.json")
     }
@@ -33,6 +34,7 @@ impl HikeRecord {
     /// The R2 key of `slug`'s trail map. The server always derives this — it is
     /// never taken from a request body, so a client cannot aim a write at an
     /// arbitrary object.
+    // @spec MAP-001, TRUST-005
     pub fn map_key_for(slug: &str) -> String {
         format!("hikes/{slug}/map.png")
     }
@@ -41,6 +43,7 @@ impl HikeRecord {
 /// The body of `PUT /api/hikes/{slug}`. Has no `id` or `mapKey`: both are
 /// derived from the path slug when the record is built.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// @spec TRUST-006
 pub struct HikeRequest {
     pub start: String,
     pub end: String,

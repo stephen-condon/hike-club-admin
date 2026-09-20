@@ -14,6 +14,7 @@ const OPENAPI_YAML: &str = include_str!("../openapi.yaml");
 /// validator understands. Translate it the way OpenAPI tooling does: a
 /// `type: X` becomes `anyOf: [{type: "null"}, {type: X, ...rest}]`, and a
 /// `$ref`/`allOf` wrapper becomes `anyOf: [{type: "null"}, {allOf: [...]}]`.
+// @spec CONTRACT-008
 fn desugar_nullable(value: &mut serde_json::Value) {
     if let Some(obj) = value.as_object_mut() {
         for v in obj.values_mut() {
@@ -78,6 +79,7 @@ fn sample_request() -> HikeRequest {
 }
 
 #[test]
+// @spec CONTRACT-001
 fn every_schema_in_the_spec_compiles() {
     let schemas = spec();
     let schemas = schemas["components"]["schemas"].as_object().unwrap();
@@ -87,6 +89,7 @@ fn every_schema_in_the_spec_compiles() {
 }
 
 #[test]
+// @spec CONTRACT-002
 fn hike_request_matches_spec() {
     let validator = validator_for("HikeRequest");
     let body = serde_json::to_value(sample_request()).unwrap();
@@ -97,6 +100,7 @@ fn hike_request_matches_spec() {
 /// of R2 and deserializes into its own `HikeRecord`; the spec's schema mirrors
 /// that struct, so a rename here fails the build instead of the public API.
 #[test]
+// @spec CONTRACT-002, CONTRACT-003
 fn stored_hike_record_matches_spec() {
     let record = build_record("cantigny-park", &sample_request(), &locations()).unwrap();
     let body = serde_json::to_value(&record).unwrap();
@@ -112,6 +116,7 @@ fn stored_hike_record_matches_spec() {
 }
 
 #[test]
+// @spec CONTRACT-002
 fn hike_summary_matches_spec_scheduled_and_not() {
     let validator = validator_for("HikeSummary");
 
@@ -142,6 +147,7 @@ fn hike_summary_matches_spec_scheduled_and_not() {
 }
 
 #[test]
+// @spec CONTRACT-002
 fn locations_and_error_bodies_match_spec() {
     let body = serde_json::to_value(locations()).unwrap();
     assert!(validator_for("HikeLocations").is_valid(&body), "{body}");
@@ -154,6 +160,7 @@ fn locations_and_error_bodies_match_spec() {
 /// limit moves in `validate.rs` without moving in `openapi.yaml`, the spec is
 /// lying to whoever reads it — fail here rather than let them drift.
 #[test]
+// @spec CONTRACT-004
 fn spec_limits_match_validate_limits() {
     let spec = spec();
     let schemas = &spec["components"]["schemas"];
@@ -180,6 +187,7 @@ fn spec_limits_match_validate_limits() {
 /// A rejection path with no matching spec constraint is drift, and the point of
 /// keeping a spec for a write API is catching exactly that.
 #[test]
+// @spec CONTRACT-005
 fn spec_rejects_every_body_validate_rejects() {
     let validator = validator_for("HikeRequest");
 
@@ -269,6 +277,7 @@ fn spec_rejects_every_body_validate_rejects() {
 /// The mirror of the above for slugs, which travel in the path rather than the
 /// body and so are checked against the `Slug` schema.
 #[test]
+// @spec CONTRACT-006
 fn spec_rejects_every_slug_validate_rejects() {
     let validator = validator_for("Slug");
     for bad in [
@@ -304,6 +313,7 @@ fn spec_rejects_every_slug_validate_rejects() {
 /// keep. Matching on source text is crude, but the router is a dozen lines and
 /// this needs no Workers runtime to run.
 #[test]
+// @spec CONTRACT-007
 fn the_router_and_the_spec_describe_the_same_routes() {
     const LIB_RS: &str = include_str!("../src/lib.rs");
 

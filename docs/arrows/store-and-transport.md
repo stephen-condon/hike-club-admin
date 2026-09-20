@@ -75,6 +75,11 @@ storage failure one honest vocabulary.
    back to a fixed error body (`admin.rs:27-28`).
 6. **An absent `:slug` is impossible for a matched route**, so `lib.rs:81-83`
    falls back to an empty string, which then fails validation downstream.
+7. **Seven specs have no test citing them** — STORE-011, -012 and -013 live in
+   `src/lib.rs`, excluded from the coverage gate by design; STORE-005's cursor
+   loop is unreachable through the fake; STORE-002 and -010 are structural,
+   proven by the suite's existence rather than by an assertion; STORE-008's
+   fallback cannot be reached, since serializing owned types does not fail.
 
 ## Work Required
 

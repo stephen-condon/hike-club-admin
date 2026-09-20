@@ -83,6 +83,38 @@ only execute inside a deployed or dev worker. They are verified by running
 This is the trade the seam buys: everything with a decision in it is held to
 85%, and the two files that are excluded contain no decisions.
 
+### Runtime verification procedure
+
+What the excluded files get instead of coverage. Run against the real bucket:
+
+```bash
+npx wrangler dev --remote --port 8788
+```
+
+Then exercise each path that only exists in the excluded files:
+
+| Check | Exercises | Expect |
+|---|---|---|
+| `GET /health` | routing, no storage | `ok` |
+| `GET /` | `include_str!` delivery | the admin page renders |
+| `GET /api/hikes` | `R2Store::list`, cursor loop, `respond` | a row per location |
+| `PUT /api/map/{slug}` with a PNG | `R2Store::put`, HTTP metadata | 204, then the preview loads |
+| `GET /api/map/{slug}` | `R2Store::get`, byte fidelity | the same PNG |
+
+This cannot run in CI: Cloudflare Access rejects unauthenticated requests
+before the Worker runs, so CI would need a service token — the same reason
+`release.yml` carries no post-deploy smoke test. STORE-005's cursor loop is
+only reachable here, since the in-memory fake is not R2 and returns every key
+at once.
+
+### When to split this node
+
+This node holds two purposes, kept together because `src/lib.rs` is glue: a
+router, a binding lookup, a slug accessor and a response translation, with no
+conditionals and nothing a test would assert. Split `transport` into its own
+leaf when that stops being true — when `lib.rs` acquires middleware, request
+rewriting, identity handling, or any branch whose outcome a test would check.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives Considered | Rationale |
@@ -104,14 +136,16 @@ This is the trade the seam buys: everything with a decision in it is held to
    a panic (`admin.rs:379-404` asserts both).
 2. ✅ `delete` is idempotent (`store.rs:139-146`).
 
+3. ✅ The node keeps both purposes while `lib.rs` stays glue; the condition that
+   should trigger a split is recorded above rather than re-argued each time.
+4. ✅ The `wrangler dev --remote` check is written down as a procedure. It cannot
+   be automated: Access rejects unauthenticated requests before the Worker runs.
+5. ✅ `R2Store::list`'s cursor loop is reachable only under a real Bucket, so
+   STORE-005 is verified by the runtime procedure rather than by a unit test.
+
 ### Deferred
-1. This node holds two purposes — the storage seam and HTTP translation. They
-   were kept together during mapping because `lib.rs` is 91 lines of glue. If it
-   grows, split `transport` into its own leaf.
-2. The `wrangler dev --remote` verification that stands in for coverage on
-   `lib.rs` and `r2_store.rs` is manual, unscripted, and leaves no record.
-3. `R2Store::list` pages defensively but nothing tests the multi-page path,
-   since the fake returns everything at once.
+
+_None._
 
 ## References
 

@@ -5,9 +5,10 @@ implementation, the `Outcome` type, routing, and the failure vocabulary.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
-from existing code. Two of its files are excluded from the coverage gate by
-design; see Key Findings.
+**AUDITED** — last audited 2026-09-20 (git SHA `2fdc7ef`). Specs verified
+against code; all three deferred questions resolved. Two files remain excluded
+from the coverage gate by design, now with a written runtime procedure in
+place of it.
 
 ## References
 
@@ -68,9 +69,10 @@ storage failure one honest vocabulary.
    worker as a proxy for storage: the browser can only retry.
 3. **Corrupt stored JSON is also 502** — deliberately not a panic and not a 500
    (`admin.rs:73-74,82-84`).
-4. **Cursor paging is pre-emptive** — `r2_store.rs:50-52` notes the bucket holds
-   two objects per location, so one page covers it today; the loop exists so it
-   stays correct later.
+4. **Cursor paging is pre-emptive and untestable in-process** — `r2_store.rs:50-52`
+   notes the bucket holds two objects per location, so one page covers it today.
+   The loop needs a real `Bucket` to exercise, so STORE-005 is verified by the
+   runtime procedure in the LLD rather than by a unit test.
 5. **Serialization failure degrades rather than panics** — `Outcome::json` falls
    back to a fixed error body (`admin.rs:27-28`).
 6. **An absent `:slug` is impossible for a matched route**, so `lib.rs:81-83`
@@ -91,8 +93,6 @@ _None._
 _None._
 
 ### Nice to Have
-1. This segment holds two purposes — the storage seam and the HTTP translation
-   layer — flagged during mapping and kept together deliberately. If `lib.rs`
-   grows beyond glue, split `transport` out.
-2. Nothing automated verifies `lib.rs` or `r2_store.rs`; the `wrangler dev
-   --remote` check is manual and unrecorded.
+1. The `wrangler dev --remote` procedure is written down but still manual.
+   Automating it needs a Cloudflare Access service token; deliberately not
+   taken, for a single-user admin tool writing to one real bucket.

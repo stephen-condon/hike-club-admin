@@ -63,15 +63,15 @@ arrows:
     drift: null
 
   store-and-transport:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-09-19
-    audited: 2026-09-19
-    audited_sha: c911233
+    audited: 2026-09-20
+    audited_sha: 2fdc7ef
     blocks: [hike-record, trail-map, location-mapping, contract]
     blockedBy: []
     detail: store-and-transport.md
-    next: "Split 'transport' into its own leaf if src/lib.rs grows beyond glue; it holds two purposes today."
+    next: null
     drift: null
 
   contract:

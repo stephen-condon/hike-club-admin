@@ -8,9 +8,14 @@
 //! Authentication is Cloudflare Access, attached to this Worker in the
 //! dashboard — unauthenticated requests never reach this code, so there is
 //! deliberately no auth handling here.
+mod admin;
 pub mod models;
+mod r2_store;
+mod store;
 pub mod validate;
 
+use admin::Outcome;
+use r2_store::R2Store;
 use worker::*;
 
 #[event(fetch)]
@@ -19,6 +24,39 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     Router::new()
         .get_async("/health", |_, _| async { Response::ok("ok") })
+        .get_async("/api/hikes/:slug", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::get_hike(&store, slug(&ctx)).await)
+        })
+        .put_async("/api/hikes/:slug", |mut req, ctx| async move {
+            let store = store(&ctx)?;
+            let body = req.bytes().await?;
+            respond(admin::put_hike(&store, slug(&ctx), &body).await)
+        })
+        .delete_async("/api/hikes/:slug", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::delete_hike(&store, slug(&ctx)).await)
+        })
         .run(req, env)
         .await
+}
+
+fn store(ctx: &RouteContext<()>) -> Result<R2Store> {
+    Ok(R2Store {
+        bucket: ctx.env.bucket("HIKES")?,
+    })
+}
+
+/// The `:slug` param. Absent is impossible for a matched route, and an empty
+/// string fails validation in the handler, so this needs no error path.
+fn slug(ctx: &RouteContext<()>) -> &str {
+    ctx.param("slug").map(String::as_str).unwrap_or_default()
+}
+
+fn respond(outcome: Outcome) -> Result<Response> {
+    let mut response = Response::from_bytes(outcome.body)?.with_status(outcome.status);
+    response
+        .headers_mut()
+        .set("content-type", outcome.content_type)?;
+    Ok(response)
 }

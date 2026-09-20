@@ -1,5 +1,5 @@
 schema_version: 2
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 
 # Organizational only. Three stored objects, two guarantees that protect them,
 # one layer of plumbing underneath.
@@ -35,7 +35,7 @@ arrows:
     blocks: []
     blockedBy: [trust-boundary, location-mapping, store-and-transport]
     detail: trail-map.md
-    next: "Decide whether the 415/413/400 split should drive distinct UI copy, or correct the comment claiming it does."
+    next: "Decide whether a route should delete a trail map; removed locations orphan theirs indefinitely."
     drift: null
 
   location-mapping:

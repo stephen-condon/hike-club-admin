@@ -192,8 +192,10 @@ pub fn validate_locations(locations: &[HikeLocation]) -> Checked<()> {
     Ok(())
 }
 
-/// Validates a trail map upload. 415 for the wrong type, 413 for too large —
-/// the two cases the UI reports differently.
+/// Validates a trail map upload. 415 for the wrong type, 413 for too large,
+/// 400 for empty: distinct statuses so the response names the actual reason.
+/// The admin page renders whichever message comes back and does not branch on
+/// the status, so the reason reaches the admin as text rather than as handling.
 pub fn validate_map_upload(content_type: Option<&str>, len: usize) -> Checked<()> {
     // Browsers may append parameters, e.g. "image/png; charset=binary".
     let is_png = content_type

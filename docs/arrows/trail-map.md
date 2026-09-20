@@ -5,8 +5,9 @@ hike record for that location.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
-from existing code; behavior fully observed, no gaps found.
+**MAPPED** — last audited 2026-09-20 (git SHA `f1d3319`). Reverse-engineered
+from existing code; behavior fully observed, no gaps found. One inferred
+behavior confirmed since mapping: the upload statuses are not branched on.
 
 ## References
 
@@ -56,11 +57,11 @@ when the hike is.
 1. **The map outlives the record** — `delete_hike` removes only the JSON
    (`admin.rs:124-134`), so rescheduling the same preserve needs no re-upload.
    Asserted at `admin.rs:448-460`.
-2. **Distinct status codes are deliberate** — 415 for the wrong type, 413 for
-   too large, 400 for empty. The comment at `validate.rs:195-196` says the UI
-   reports these differently; in practice the UI surfaces `error` text
-   uniformly (`index.html:203`), so the distinction is currently carried by the
-   message, not by any branch.
+2. **Distinct status codes are deliberate, and carried by message text** —
+   415 for the wrong type, 413 for too large, 400 for empty, so the response
+   names the actual reason. The admin page does not branch on them: every
+   error reaches the admin as `body.error` through one path
+   (`index.html:199-205`). The only status the page distinguishes is 204.
 3. **5 MB ceiling is sized from real data** — `validate.rs:19` records that
    existing maps run 280 KB to 1.1 MB.
 4. **Content-type parameters tolerated** — `image/PNG; charset=binary` passes
@@ -75,5 +76,5 @@ _None._
 _None._
 
 ### Nice to Have
-1. Confirm whether the 415/413/400 split should drive distinct UI copy, or
-   whether finding 2 means the split exists only for API correctness.
+1. No route deletes a trail map; a location removed from the mapping leaves its
+   map in the bucket indefinitely.

@@ -49,7 +49,7 @@ rather than the browser's cached copy.
 |---|---|---|---|
 | Map ownership | One map per location, shared by every record | One map per hike record; a map per record with fallback | The trails don't change between hikes. Rescheduling would otherwise need a re-upload every time. |
 | Upload coupling | Separate endpoint from scheduling | Multipart form carrying both; embed the image in the record | Keeps the record small and lets a map be replaced without rewriting the hike. The UI still presents both in one sheet. |
-| Rejected type | 415, distinct from 413 and 400 | A single 400 for every bad upload | Correct HTTP, and the sizes and types fail for genuinely different reasons. See Open Questions 1. |
+| Rejected type | 415, distinct from 413 and 400 | A single 400 for every bad upload | Correct HTTP, and the sizes and types fail for genuinely different reasons. The distinction is carried to the admin by the message text, not by any branch in the page. |
 | Size ceiling | 5 MB | 2 MB; no limit | Roughly 5x the largest existing map, so it will not bite in practice, while still bounding a worker request. |
 | Content-type parsing | Split on `;`, compare case-insensitively | Exact string match | Browsers append parameters; an exact match would reject legitimate uploads. |
 | Delete behavior | No endpoint deletes a map | A DELETE route; delete alongside the record | Orphaning is recoverable, deleting is not; a map is replaced by uploading another. |
@@ -59,13 +59,13 @@ rather than the browser's cached copy.
 ### Resolved
 1. ✅ Replacing a map leaves the hike record untouched and vice versa
    (`admin.rs:448-460` asserts both directions).
+2. ✅ The upload statuses stay distinct, and the admin page does not branch on
+   them. 415, 413 and 400 exist so the response names the actual reason; the
+   page surfaces whichever message comes back (`index.html:199-205`). The only
+   status the page distinguishes is 204.
 
 ### Deferred
-1. `validate.rs:195-196` says 415 and 413 are "the two cases the UI reports
-   differently," but the page renders every error's `error` text through one
-   path (`index.html:203`). Either the UI should branch, or the comment should
-   stop claiming it does.
-2. No route deletes a trail map. A location removed from the mapping leaves its
+1. No route deletes a trail map. A location removed from the mapping leaves its
    map in the bucket indefinitely.
 
 ## References

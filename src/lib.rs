@@ -8,6 +8,9 @@
 //! Authentication is Cloudflare Access, attached to this Worker in the
 //! dashboard — unauthenticated requests never reach this code, so there is
 //! deliberately no auth handling here.
+pub mod models;
+pub mod validate;
+
 use worker::*;
 
 #[event(fetch)]

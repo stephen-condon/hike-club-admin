@@ -37,6 +37,16 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let store = store(&ctx)?;
             respond(admin::delete_hike(&store, slug(&ctx)).await)
         })
+        .get_async("/api/map/:slug", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::get_map(&store, slug(&ctx)).await)
+        })
+        .put_async("/api/map/:slug", |mut req, ctx| async move {
+            let store = store(&ctx)?;
+            let content_type = req.headers().get("content-type").ok().flatten();
+            let body = req.bytes().await?;
+            respond(admin::put_map(&store, slug(&ctx), content_type.as_deref(), body).await)
+        })
         .run(req, env)
         .await
 }

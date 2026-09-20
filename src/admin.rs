@@ -32,6 +32,14 @@ impl Outcome {
         Self::json(status, &ErrorBody::new(message))
     }
 
+    fn png(body: Vec<u8>) -> Self {
+        Self {
+            status: 200,
+            content_type: "image/png",
+            body,
+        }
+    }
+
     pub fn no_content() -> Self {
         Self {
             status: 204,
@@ -119,6 +127,45 @@ pub async fn delete_hike(store: &impl AdminStore, slug: &str) -> Outcome {
         return invalid.into();
     }
     match store.delete(&HikeRecord::key(slug)).await {
+        Ok(()) => Outcome::no_content(),
+        Err(e) => upstream(e),
+    }
+}
+
+pub async fn get_map(store: &impl AdminStore, slug: &str) -> Outcome {
+    if let Err(invalid) = validate::validate_slug(slug) {
+        return invalid.into();
+    }
+    match store.get(&HikeRecord::map_key_for(slug)).await {
+        Ok(Some(bytes)) => Outcome::png(bytes),
+        Ok(None) => Outcome::error(404, format!("no trail map for '{slug}'")),
+        Err(e) => upstream(e),
+    }
+}
+
+/// Maps are uploaded once per location and shared by every record for it, so
+/// this is separate from scheduling: replacing a map doesn't touch the hike,
+/// and rescheduling doesn't need a re-upload.
+pub async fn put_map(
+    store: &impl AdminStore,
+    slug: &str,
+    content_type: Option<&str>,
+    body: Vec<u8>,
+) -> Outcome {
+    let locations = match read_locations(store).await {
+        Ok(l) => l,
+        Err(outcome) => return outcome,
+    };
+    if let Err(invalid) = validate::validate_known_slug(slug, &locations) {
+        return invalid.into();
+    }
+    if let Err(invalid) = validate::validate_map_upload(content_type, body.len()) {
+        return invalid.into();
+    }
+    match store
+        .put(&HikeRecord::map_key_for(slug), body, "image/png")
+        .await
+    {
         Ok(()) => Outcome::no_content(),
         Err(e) => upstream(e),
     }
@@ -291,5 +338,108 @@ mod tests {
         let store = InMemoryStore::new();
         let outcome = put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
         assert_eq!(outcome.status, 400);
+    }
+
+    /// A 1x1 PNG — enough to prove bytes round-trip unaltered.
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\nfake-but-png-enough";
+
+    #[tokio::test]
+    async fn put_then_get_round_trips_a_map() {
+        let store = seeded();
+        let put = put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        assert_eq!(put.status, 204);
+
+        let got = get_map(&store, "cantigny-park").await;
+        assert_eq!(got.status, 200);
+        assert_eq!(got.content_type, "image/png");
+        assert_eq!(got.body, PNG);
+    }
+
+    /// The key must match what upload-hike.sh writes and what every record's
+    /// mapKey points at, or the public API presigns a URL to nothing.
+    #[tokio::test]
+    async fn put_writes_the_shared_map_key() {
+        let store = seeded();
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        assert!(
+            store
+                .keys()
+                .contains(&"hikes/cantigny-park/map.png".to_string())
+        );
+        assert_eq!(
+            store.content_type("hikes/cantigny-park/map.png").unwrap(),
+            "image/png"
+        );
+    }
+
+    /// Replacing a map leaves the hike record alone, and vice versa.
+    #[tokio::test]
+    async fn map_and_record_are_independent() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+
+        delete_hike(&store, "cantigny-park").await;
+        assert_eq!(get_map(&store, "cantigny-park").await.status, 200);
+
+        put_map(&store, "cantigny-park", Some("image/png"), b"new".to_vec()).await;
+        assert_eq!(get_map(&store, "cantigny-park").await.body, b"new");
+    }
+
+    #[tokio::test]
+    async fn get_map_is_404_when_none_is_uploaded() {
+        assert_eq!(get_map(&seeded(), "cantigny-park").await.status, 404);
+    }
+
+    #[tokio::test]
+    async fn map_endpoints_reject_invalid_slugs() {
+        assert_eq!(get_map(&seeded(), "../secrets").await.status, 400);
+        let store = seeded();
+        let outcome = put_map(&store, "../secrets", Some("image/png"), PNG.to_vec()).await;
+        assert_eq!(outcome.status, 400);
+        assert_eq!(store.keys(), vec![LOCATIONS_KEY]);
+    }
+
+    #[tokio::test]
+    async fn put_map_rejects_an_unknown_location() {
+        let outcome = put_map(&seeded(), "somewhere-else", Some("image/png"), PNG.to_vec()).await;
+        assert_eq!(outcome.status, 400);
+    }
+
+    #[tokio::test]
+    async fn put_map_rejects_the_wrong_type_and_oversized_bodies() {
+        let store = seeded();
+        assert_eq!(
+            put_map(&store, "cantigny-park", Some("image/jpeg"), PNG.to_vec())
+                .await
+                .status,
+            415
+        );
+        assert_eq!(
+            put_map(&store, "cantigny-park", None, PNG.to_vec())
+                .await
+                .status,
+            415
+        );
+        let huge = vec![0u8; crate::validate::MAX_MAP_BYTES + 1];
+        assert_eq!(
+            put_map(&store, "cantigny-park", Some("image/png"), huge)
+                .await
+                .status,
+            413
+        );
+        assert_eq!(store.keys(), vec![LOCATIONS_KEY]);
+    }
+
+    #[tokio::test]
+    async fn map_storage_failures_surface_as_502() {
+        let store = InMemoryStore::failing();
+        assert_eq!(get_map(&store, "cantigny-park").await.status, 502);
+        assert_eq!(
+            put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec())
+                .await
+                .status,
+            502
+        );
     }
 }

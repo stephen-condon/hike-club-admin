@@ -1,0 +1,329 @@
+openapi: 3.0.3
+info:
+  title: Hike Club Admin API
+  version: 1.0.0
+  description: >
+    Private management API for the data `hike-club-api` serves: hike records
+    (`hikes/{slug}.json`), trail maps (`hikes/{slug}/map.png`) and the location
+    mapping (`resources/hike-locations.json`), all in the R2 bucket
+    `hike-club-api`. This worker is the bucket's only writer.
+
+    Authentication is Cloudflare Access, attached to the Worker itself, so
+    unauthenticated requests are rejected at the edge and never reach the
+    application. There is no API key and no security scheme to send.
+servers:
+  - url: https://hike-club-admin.example.workers.dev
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      responses:
+        "200":
+          description: Service is up
+          content:
+            text/plain:
+              schema:
+                type: string
+  /:
+    get:
+      summary: The admin UI
+      responses:
+        "200":
+          description: A single self-contained HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+  /api/locations:
+    get:
+      summary: List the hike locations served by GET /hike-locations
+      responses:
+        "200":
+          description: The location mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HikeLocations"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+    put:
+      summary: Replace the hike location mapping
+      description: >
+        Overwrites `resources/hike-locations.json`. Removing a location does
+        not delete its hike record or trail map; those are separate objects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HikeLocations"
+      responses:
+        "200":
+          description: The stored mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HikeLocations"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+  /api/hikes:
+    get:
+      summary: One row per location, with its scheduled hike if there is one
+      responses:
+        "200":
+          description: Hike summaries, one per known location
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HikeSummary"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+  /api/hikes/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/Slug"
+    get:
+      summary: Get one hike record
+      responses:
+        "200":
+          description: The stored record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HikeRecord"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+    put:
+      summary: Schedule or reschedule a hike
+      description: >
+        Writes `hikes/{slug}.json`. `id` and `mapKey` are set by the server from
+        the path slug and are not read from the request body — `mapKey` is always
+        `hikes/{slug}/map.png`. The slug must be a known location.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HikeRequest"
+      responses:
+        "200":
+          description: The record as stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HikeRecord"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+    delete:
+      summary: Unschedule a hike
+      description: >
+        Deletes `hikes/{slug}.json`, after which `GET /hike/{slug}` on the public
+        API 404s. The trail map is left in place.
+      responses:
+        "204":
+          description: Deleted, or already absent
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+  /api/map/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/Slug"
+    get:
+      summary: Fetch a trail map for preview
+      responses:
+        "200":
+          description: The stored PNG
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+    put:
+      summary: Replace a trail map
+      description: Writes `hikes/{slug}/map.png`. Must be a PNG of at most 5 MB.
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "204":
+          description: Stored
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "413":
+          $ref: "#/components/responses/ValidationError"
+        "415":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+components:
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      description: A location slug — the `short_name` from `/api/locations`.
+      schema:
+        $ref: "#/components/schemas/Slug"
+  responses:
+    ValidationError:
+      description: The request failed validation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No such object
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UpstreamError:
+      description: R2 storage error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Slug:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+      example: danada-equestrian-center
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HikeLocation:
+      type: object
+      required: [short_name, full_name]
+      additionalProperties: false
+      properties:
+        short_name:
+          $ref: "#/components/schemas/Slug"
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    HikeLocations:
+      type: array
+      maxItems: 200
+      items:
+        $ref: "#/components/schemas/HikeLocation"
+    MeetingCoords:
+      type: object
+      required: [lat, lon]
+      additionalProperties: false
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+    Trails:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        type: string
+        minLength: 1
+        maxLength: 100
+    HikeRequest:
+      type: object
+      required: [start, end, meeting, trails]
+      additionalProperties: false
+      description: >
+        The body of `PUT /api/hikes/{slug}`. Deliberately has no `id` or
+        `mapKey` — the server derives both from the path slug.
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: RFC 3339, with the hike's local UTC offset.
+        end:
+          type: string
+          format: date-time
+          description: RFC 3339, strictly after `start`.
+        meeting:
+          $ref: "#/components/schemas/MeetingCoords"
+        trails:
+          $ref: "#/components/schemas/Trails"
+    HikeRecord:
+      type: object
+      required: [id, start, end, meeting, trails, mapKey]
+      additionalProperties: false
+      description: >
+        The object stored at `hikes/{slug}.json`. This schema is the cross-repo
+        contract: it mirrors `HikeRecord` in `hike-club-api/src/models.rs`, which
+        deserializes exactly these bytes. Changing it breaks the public API.
+      properties:
+        id:
+          $ref: "#/components/schemas/Slug"
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        meeting:
+          $ref: "#/components/schemas/MeetingCoords"
+        trails:
+          $ref: "#/components/schemas/Trails"
+        mapKey:
+          type: string
+          description: Always `hikes/{id}/map.png`.
+          pattern: "^hikes/[a-z0-9]+(-[a-z0-9]+)*/map\\.png$"
+    HikeSummary:
+      type: object
+      required: [shortName, fullName, scheduled, stale, hasMap]
+      additionalProperties: false
+      description: One row of the admin list — a location plus its hike, if any.
+      properties:
+        shortName:
+          $ref: "#/components/schemas/Slug"
+        fullName:
+          type: string
+        scheduled:
+          type: boolean
+          description: Whether `hikes/{shortName}.json` exists.
+        stale:
+          type: boolean
+          description: >
+            True when the record's `end` is in the past. Such a record makes the
+            public API serve the *last* hike's observed weather as if it were
+            current, so the UI flags it.
+        hasMap:
+          type: boolean
+        start:
+          type: string
+          format: date-time
+          nullable: true
+        end:
+          type: string
+          format: date-time
+          nullable: true

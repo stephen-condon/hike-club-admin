@@ -319,6 +319,12 @@ components:
             current, so the UI flags it.
         hasMap:
           type: boolean
+        trail:
+          type: string
+          nullable: true
+          description: >
+            The record's first trail. The UI colours each row with that trail's
+            blaze colour, the way a trail is marked on a tree.
         start:
           type: string
           format: date-time

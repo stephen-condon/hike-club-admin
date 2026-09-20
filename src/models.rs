@@ -74,6 +74,11 @@ pub struct HikeSummary {
     pub stale: bool,
     #[serde(rename = "hasMap")]
     pub has_map: bool,
+    /// The record's first trail. Trail blazes are painted in the trail's own
+    /// colour and the club names its trails for those colours, so the UI uses
+    /// this to colour the row — which saves a GET per location too.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

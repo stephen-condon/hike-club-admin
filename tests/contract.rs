@@ -121,6 +121,7 @@ fn hike_summary_matches_spec_scheduled_and_not() {
         scheduled: true,
         stale: false,
         has_map: true,
+        trail: Some("Purple".to_string()),
         start: Some("2026-09-26T09:00:00-05:00".to_string()),
         end: Some("2026-09-26T11:00:00-05:00".to_string()),
     };
@@ -131,6 +132,7 @@ fn hike_summary_matches_spec_scheduled_and_not() {
         scheduled: false,
         stale: false,
         has_map: false,
+        trail: None,
         start: None,
         end: None,
         ..scheduled
@@ -294,4 +296,44 @@ fn spec_rejects_every_slug_validate_rejects() {
         assert!(validator.is_valid(&serde_json::json!(good)), "{good}");
         assert!(validate::validate_slug(good).is_ok(), "{good}");
     }
+}
+
+/// The spec only verifies anything if it describes the routes that actually
+/// exist. Compare it against the router both ways: a route with no spec entry
+/// is undocumented, a spec entry with no route is a promise the worker doesn't
+/// keep. Matching on source text is crude, but the router is a dozen lines and
+/// this needs no Workers runtime to run.
+#[test]
+fn the_router_and_the_spec_describe_the_same_routes() {
+    const LIB_RS: &str = include_str!("../src/lib.rs");
+
+    let spec = spec();
+    let paths = spec["paths"].as_object().unwrap();
+
+    let mut expected: Vec<String> = Vec::new();
+    for (path, item) in paths {
+        // OpenAPI's {slug} is the router's :slug.
+        let route = path.replace("{slug}", ":slug");
+        for method in item.as_object().unwrap().keys() {
+            if method == "parameters" {
+                continue;
+            }
+            expected.push(format!(".{method}_async(\"{route}\""));
+        }
+    }
+
+    for route in &expected {
+        assert!(
+            LIB_RS.contains(route),
+            "openapi.yaml describes a route the worker does not serve: {route}"
+        );
+    }
+
+    let served = LIB_RS.matches("_async(\"").count();
+    assert_eq!(
+        served,
+        expected.len(),
+        "the worker serves {served} routes but openapi.yaml describes {}",
+        expected.len()
+    );
 }

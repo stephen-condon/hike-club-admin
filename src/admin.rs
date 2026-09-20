@@ -235,6 +235,7 @@ pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome 
                 .as_ref()
                 .is_some_and(|r| validate::is_stale(&r.end, now)),
             has_map,
+            trail: record.as_ref().and_then(|r| r.trails.first().cloned()),
             start: record.as_ref().map(|r| r.start.clone()),
             end: record.map(|r| r.end),
         });
@@ -611,6 +612,19 @@ mod tests {
         assert_eq!(rows[1]["shortName"], "danada-equestrian-center");
         assert_eq!(rows[1]["scheduled"], false);
         assert_eq!(rows[1]["start"], serde_json::Value::Null);
+    }
+
+    /// The row's blaze colour comes from the trail name, so the summary carries
+    /// it and the list doesn't need a GET per location to draw itself.
+    #[tokio::test]
+    async fn list_carries_the_first_trail_for_the_blaze() {
+        let store = seeded();
+        let two_trails = REQUEST.replace(r#"["Purple"]"#, r#"["Purple","Green"]"#);
+        put_hike(&store, "cantigny-park", two_trails.as_bytes()).await;
+
+        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        assert_eq!(rows[0]["trail"], "Purple");
+        assert_eq!(rows[1]["trail"], serde_json::Value::Null);
     }
 
     /// The footgun this whole list exists to surface: a record whose end has

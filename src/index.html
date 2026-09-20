@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hike Club</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+/* Forest-preserve signage: routed green boards, sand lettering, and the painted
+   trail blaze that marks a route on a tree. Each row wears its trail's blaze
+   colour, taken from the trail name itself. */
+:root {
+  --paper: #f1f4ef;
+  --card: #ffffff;
+  --ink: #16231b;
+  --moss: #2f5d3f;
+  --sage: #6f8472;
+  --rule: #d8e0d6;
+  --alert: #a63a1c;
+  --amber: #b5842a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12180f;
+    --card: #1a2118;
+    --ink: #e7ece4;
+    --moss: #8fc19c;
+    --sage: #91a494;
+    --rule: #2b3529;
+    --alert: #e8865f;
+    --amber: #d9ab4e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.5 Archivo, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 46rem; margin: 0 auto; padding: 2rem 1rem 5rem; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+
+/* The hero: which preserve is next, and how long you have. */
+.next { padding: 1rem 0 2rem; border-bottom: 2px solid var(--ink); }
+.next h1 { font-size: clamp(2.2rem, 8vw, 3.4rem); line-height: 1.05; font-weight: 800; }
+.next .when { margin: 0.6rem 0 0; font-size: 1.05rem; color: var(--sage); }
+.next .countdown { font-weight: 600; color: var(--moss); }
+.next .countdown.late { color: var(--alert); }
+.next p.empty { margin: 0.5rem 0 0; font-size: 1.1rem; color: var(--sage); max-width: 34rem; }
+
+ul { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: grid;
+  grid-template-columns: 6px 1fr auto;
+  gap: 0 1rem;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.row:hover .place, .row:focus-visible .place { color: var(--moss); }
+.blaze { align-self: stretch; background: var(--rule); }
+.row > div { padding: 0.9rem 0; }
+.place { font-weight: 500; }
+.detail { font-size: 0.95rem; color: var(--sage); }
+.detail.stale { color: var(--alert); }
+.detail.unset { color: var(--amber); }
+.chevron { color: var(--sage); padding-right: 0.25rem; }
+
+.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin: 2.5rem 0 0.5rem; }
+.bar h2 { font-size: 1.1rem; }
+.link { background: none; border: 0; padding: 0; color: var(--moss); font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--ink);
+}
+dialog::backdrop { background: rgba(10, 20, 12, 0.5); }
+.sheet { padding: 1.5rem; }
+.sheet h2 { font-size: 1.5rem; margin-bottom: 1.25rem; }
+label { display: block; margin-bottom: 1rem; font-size: 0.9rem; color: var(--sage); }
+label span { display: block; margin-bottom: 0.3rem; }
+input[type=date], input[type=time], input[type=text], input[type=number] {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
+}
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.75rem; }
+.map { width: 100%; border: 1px solid var(--rule); border-radius: 3px; display: block; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1.5rem; }
+.primary {
+  padding: 0.6rem 1.1rem;
+  border: 0;
+  border-radius: 3px;
+  background: var(--moss);
+  color: var(--paper);
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary[disabled] { opacity: 0.5; cursor: default; }
+.ghost { padding: 0.6rem 0.9rem; border: 1px solid var(--rule); border-radius: 3px; background: none; cursor: pointer; }
+.danger { color: var(--alert); border-color: transparent; }
+.spacer { flex: 1; }
+.note { margin: 0.75rem 0 0; font-size: 0.9rem; color: var(--sage); min-height: 1.4em; }
+.note.bad { color: var(--alert); }
+.loc-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
+.loc-row input { margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .saved { animation: flash 900ms ease-out; }
+}
+@keyframes flash { from { background: color-mix(in srgb, var(--moss) 22%, transparent); } to { background: none; } }
+@media (max-width: 30rem) { .pair, .loc-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="next" id="next" aria-live="polite"></section>
+
+  <div class="bar">
+    <h2 id="all-hikes">All locations</h2>
+    <button class="link" id="edit-locations">Edit locations</button>
+  </div>
+  <ul id="list" aria-labelledby="all-hikes"></ul>
+  <p class="note" id="status"></p>
+</main>
+
+<dialog id="hike-sheet">
+  <form class="sheet" method="dialog" id="hike-form">
+    <h2 id="hike-title"></h2>
+    <div class="pair">
+      <label><span>Date</span><input type="date" id="f-date" required></label>
+      <div class="pair">
+        <label><span>Start</span><input type="time" id="f-start" required></label>
+        <label><span>End</span><input type="time" id="f-end" required></label>
+      </div>
+    </div>
+    <label><span>Trails</span><input type="text" id="f-trails" placeholder="Purple, Green" required></label>
+    <div class="pair">
+      <label><span>Meeting latitude</span><input type="number" id="f-lat" step="any" min="-90" max="90" required></label>
+      <label><span>Meeting longitude</span><input type="number" id="f-lon" step="any" min="-180" max="180" required></label>
+    </div>
+    <label><span>Trail map</span><img class="map" id="f-map" alt="" hidden><input type="file" id="f-file" accept="image/png"></label>
+    <p class="note" id="hike-note"></p>
+    <div class="actions">
+      <button class="primary" id="save-hike" value="save">Save hike</button>
+      <button class="ghost" value="cancel" formnovalidate>Cancel</button>
+      <span class="spacer"></span>
+      <button class="ghost danger" id="unschedule" value="unschedule" formnovalidate hidden>Unschedule</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="loc-sheet">
+  <form class="sheet" method="dialog" id="loc-form">
+    <h2>Locations</h2>
+    <div id="loc-rows"></div>
+    <button class="ghost" type="button" id="add-loc">Add a location</button>
+    <p class="note" id="loc-note">A location has to be listed here before you can schedule a hike there.</p>
+    <div class="actions">
+      <button class="primary" value="save">Save locations</button>
+      <button class="ghost" value="cancel" formnovalidate>Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// Trail blazes are painted on trees in the trail's own colour, and the club's
+// trails are named for those colours, so a row wears the blaze of its first
+// trail. Anything that isn't a colour gets the preserve green.
+const BLAZE = {
+  purple: "#6b4a9e", green: "#2f7d46", blue: "#2a5ea8", red: "#b3332c",
+  yellow: "#d8a72c", orange: "#d2742a", brown: "#7a5a3c", white: "#d9ded7",
+  black: "#2b332c", pink: "#c9628e", silver: "#9aa5a0", gray: "#8b958f",
+  grey: "#8b958f", tan: "#c0a678",
+};
+
+const $ = (id) => document.getElementById(id);
+const status = $("status");
+let hikes = [];
+let locations = [];
+let editing = null;
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  if (response.status === 204) return null;
+  const body = await response.json().catch(() => ({ error: response.statusText }));
+  if (!response.ok) throw new Error(body.error || "Request failed");
+  return body;
+}
+
+function say(element, message, bad) {
+  element.textContent = message;
+  element.classList.toggle("bad", Boolean(bad));
+}
+
+// The stored offset is the hike's own local offset, so read the wall-clock
+// parts straight out of the string rather than shifting them into this browser.
+const datePart = (t) => t.slice(0, 10);
+const timePart = (t) => t.slice(11, 16);
+
+function rfc3339(date, time) {
+  const offset = -new Date(`${date}T${time}:00`).getTimezoneOffset();
+  const sign = offset < 0 ? "-" : "+";
+  const abs = Math.abs(offset);
+  const pad = (n) => String(Math.floor(n)).padStart(2, "0");
+  return `${date}T${time}:00${sign}${pad(abs / 60)}:${pad(abs % 60)}`;
+}
+
+function readable(hike) {
+  const day = new Date(hike.start).toLocaleDateString(undefined, {
+    weekday: "long", month: "long", day: "numeric",
+  });
+  const hours = `${timePart(hike.start)} to ${timePart(hike.end)}`;
+  return `${day}, ${hours}`;
+}
+
+function daysAway(hike) {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const start = new Date(hike.start);
+  return Math.round((start - midnight) / 86400000);
+}
+
+function renderNext() {
+  const upcoming = hikes
+    .filter((h) => h.scheduled && !h.stale)
+    .sort((a, b) => a.start.localeCompare(b.start))[0];
+  const section = $("next");
+  section.replaceChildren();
+
+  if (!upcoming) {
+    const heading = document.createElement("h1");
+    heading.textContent = "No hike scheduled";
+    const hint = document.createElement("p");
+    hint.className = "empty";
+    hint.textContent = hikes.length
+      ? "Pick a location below to set the next date."
+      : "Add a location first, then schedule a hike there.";
+    section.append(heading, hint);
+    return;
+  }
+
+  const heading = document.createElement("h1");
+  heading.textContent = upcoming.fullName;
+  const when = document.createElement("p");
+  when.className = "when";
+  when.textContent = readable(upcoming) + " ";
+  const away = daysAway(upcoming);
+  const count = document.createElement("span");
+  count.className = "countdown";
+  count.textContent = away === 0 ? "today" : away === 1 ? "tomorrow" : `in ${away} days`;
+  when.append(count);
+  section.append(heading, when);
+}
+
+function renderList() {
+  const list = $("list");
+  list.replaceChildren();
+
+  for (const hike of hikes) {
+    const item = document.createElement("li");
+    const row = document.createElement("button");
+    row.className = "row";
+    row.type = "button";
+
+    const blaze = document.createElement("div");
+    blaze.className = "blaze";
+    blaze.style.background = BLAZE[(hike.trail || "").toLowerCase()] || "var(--moss)";
+
+    const text = document.createElement("div");
+    const place = document.createElement("div");
+    place.className = "place";
+    place.textContent = hike.fullName;
+    const detail = document.createElement("div");
+    detail.className = "detail";
+    if (!hike.scheduled) {
+      detail.classList.add("unset");
+      detail.textContent = "No date set";
+    } else if (hike.stale) {
+      detail.classList.add("stale");
+      detail.textContent = `${readable(hike)} — already past, needs a new date`;
+    } else {
+      detail.textContent = readable(hike);
+    }
+    text.append(place, detail);
+
+    const chevron = document.createElement("div");
+    chevron.className = "chevron";
+    chevron.textContent = "›";
+    chevron.setAttribute("aria-hidden", "true");
+
+    row.append(blaze, text, chevron);
+    row.addEventListener("click", () => openHike(hike));
+    item.append(row);
+    list.append(item);
+    hike.element = row;
+  }
+}
+
+async function load() {
+  try {
+    hikes = await api("/api/hikes");
+    renderNext();
+    renderList();
+    say(status, "");
+  } catch (error) {
+    say(status, `Could not load hikes. ${error.message}`, true);
+  }
+}
+
+async function openHike(hike) {
+  editing = hike;
+  $("hike-title").textContent = hike.fullName;
+  $("unschedule").hidden = !hike.scheduled;
+  say($("hike-note"), "");
+  $("f-file").value = "";
+
+  const saturday = new Date();
+  saturday.setDate(saturday.getDate() + ((6 - saturday.getDay() + 7) % 7 || 7));
+  $("f-date").value = hike.scheduled ? datePart(hike.start) : saturday.toISOString().slice(0, 10);
+  $("f-start").value = hike.scheduled ? timePart(hike.start) : "09:00";
+  $("f-end").value = hike.scheduled ? timePart(hike.end) : "11:00";
+
+  const map = $("f-map");
+  map.hidden = !hike.hasMap;
+  if (hike.hasMap) map.src = `/api/map/${hike.shortName}?t=${Date.now()}`;
+
+  $("f-trails").value = "";
+  $("f-lat").value = "";
+  $("f-lon").value = "";
+  $("hike-sheet").showModal();
+
+  if (hike.scheduled) {
+    try {
+      const record = await api(`/api/hikes/${hike.shortName}`);
+      $("f-trails").value = record.trails.join(", ");
+      $("f-lat").value = record.meeting.lat;
+      $("f-lon").value = record.meeting.lon;
+    } catch (error) {
+      say($("hike-note"), error.message, true);
+    }
+  }
+}
+
+async function saveHike() {
+  const note = $("hike-note");
+  const button = $("save-hike");
+  button.disabled = true;
+  say(note, "Saving…");
+
+  const body = {
+    start: rfc3339($("f-date").value, $("f-start").value),
+    end: rfc3339($("f-date").value, $("f-end").value),
+    meeting: { lat: Number($("f-lat").value), lon: Number($("f-lon").value) },
+    trails: $("f-trails").value.split(",").map((t) => t.trim()).filter(Boolean),
+  };
+
+  try {
+    await api(`/api/hikes/${editing.shortName}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const file = $("f-file").files[0];
+    if (file) {
+      await api(`/api/map/${editing.shortName}`, {
+        method: "PUT",
+        headers: { "content-type": "image/png" },
+        body: file,
+      });
+    }
+
+    const saved = editing.shortName;
+    $("hike-sheet").close();
+    await load();
+    hikes.find((h) => h.shortName === saved)?.element?.classList.add("saved");
+  } catch (error) {
+    say(note, error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function unschedule() {
+  try {
+    await api(`/api/hikes/${editing.shortName}`, { method: "DELETE" });
+    await load();
+  } catch (error) {
+    say(status, error.message, true);
+  }
+}
+
+function locationRow(location) {
+  const row = document.createElement("div");
+  row.className = "loc-row";
+
+  const short = document.createElement("input");
+  short.type = "text";
+  short.value = location.short_name;
+  short.placeholder = "danada-equestrian-center";
+  short.setAttribute("aria-label", "Short name used in links");
+
+  const full = document.createElement("input");
+  full.type = "text";
+  full.value = location.full_name;
+  full.placeholder = "Danada";
+  full.setAttribute("aria-label", "Name shown in the app");
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "ghost danger";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => row.remove());
+
+  row.append(short, full, remove);
+  return row;
+}
+
+async function openLocations() {
+  const rows = $("loc-rows");
+  rows.replaceChildren();
+  try {
+    locations = await api("/api/locations");
+    for (const location of locations) rows.append(locationRow(location));
+    $("loc-sheet").showModal();
+  } catch (error) {
+    say(status, error.message, true);
+  }
+}
+
+async function saveLocations() {
+  const note = $("loc-note");
+  const body = [...$("loc-rows").children].map((row) => ({
+    short_name: row.children[0].value.trim(),
+    full_name: row.children[1].value.trim(),
+  }));
+  try {
+    await api("/api/locations", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    $("loc-sheet").close();
+    await load();
+  } catch (error) {
+    say(note, error.message, true);
+  }
+}
+
+$("hike-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value === "save") {
+    event.preventDefault();
+    saveHike();
+  } else if (event.submitter?.value === "unschedule") {
+    unschedule();
+  }
+});
+$("loc-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value === "save") {
+    event.preventDefault();
+    saveLocations();
+  }
+});
+$("edit-locations").addEventListener("click", openLocations);
+$("add-loc").addEventListener("click", () => {
+  $("loc-rows").append(locationRow({ short_name: "", full_name: "" }));
+});
+
+load();
+</script>
+</body>
+</html>

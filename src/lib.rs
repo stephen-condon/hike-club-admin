@@ -18,12 +18,18 @@ use admin::Outcome;
 use r2_store::R2Store;
 use worker::*;
 
+/// The admin page. One self-contained file, so it ships in the binary rather
+/// than needing a static-assets binding — the same trick hike-club-api uses for
+/// its location mapping.
+const INDEX_HTML: &str = include_str!("index.html");
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
 
     Router::new()
         .get_async("/health", |_, _| async { Response::ok("ok") })
+        .get_async("/", |_, _| async { Response::from_html(INDEX_HTML) })
         .get_async("/api/locations", |_, ctx| async move {
             let store = store(&ctx)?;
             respond(admin::get_locations(&store).await)

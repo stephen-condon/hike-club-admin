@@ -17,6 +17,8 @@ and HTTP translation. Prefix `STORE`; see `store-and-transport-design.md`.
 - [x] **STORE-007**: If a stored object is not valid JSON, then the system shall respond 502 rather than 500, since the stored object is at fault rather than the request.
 - [x] **STORE-008**: If serializing the system's own response types fails, then the system shall emit a fixed error body rather than panicking.
 - [x] **STORE-009**: When deleting a key that does not exist, the system shall succeed, so a repeated delete is safe.
+- [x] **STORE-014**: When responding with any status outside 2xx, the system shall carry a JSON body with an `error` field naming the reason, so the reason travels as text rather than being inferable only from the status code.
+- [x] **STORE-015**: When the admin page receives a response outside 2xx, it shall display that response's `error` text to the admin, and shall not branch on the status code; the only status it distinguishes is 204, which carries no body.
 
 ## Transport
 

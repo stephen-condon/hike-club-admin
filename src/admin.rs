@@ -30,6 +30,7 @@ impl Outcome {
         }
     }
 
+    // @spec STORE-014
     pub fn error(status: u16, message: impl Into<String>) -> Self {
         Self::json(status, &ErrorBody::new(message))
     }
@@ -328,7 +329,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // @spec LOC-009
+    // @spec LOC-009, STORE-014
     async fn put_rejects_an_unknown_location() {
         let outcome = put_hike(&seeded(), "somewhere-else", REQUEST.as_bytes()).await;
         assert_eq!(outcome.status, 400);

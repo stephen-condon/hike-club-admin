@@ -54,6 +54,13 @@ covers the club today and the loop is insurance rather than a live requirement.
 Nothing panics. `Outcome::json` falls back to a fixed error body if
 serialization fails, because a panic in a worker loses the request entirely.
 
+Every one of these carries the same body shape: `{"error": "<reason>"}`. That
+matters because the status code alone is not what the admin sees. The page has
+one error path — any non-2xx becomes `body.error` text in a note line
+(`index.html:199-205`) — and the only status it distinguishes is 204. So the
+reason a request failed reaches the admin as the message this layer wrote, and
+a status split that is not matched by a distinct message is invisible to them.
+
 ## Transport
 
 `lib.rs` is glue: set the panic hook, build a router of eight routes, look up

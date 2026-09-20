@@ -196,6 +196,7 @@ let hikes = [];
 let locations = [];
 let editing = null;
 
+// @spec STORE-015
 async function api(path, options) {
   const response = await fetch(path, options);
   if (response.status === 204) return null;

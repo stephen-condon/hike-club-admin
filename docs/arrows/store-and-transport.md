@@ -18,7 +18,7 @@ design; see Key Findings.
 - `docs/intent/store-and-transport/store-and-transport-design.md`
 
 ### EARS
-- `docs/intent/store-and-transport/store-and-transport-specs.md` (13 specs)
+- `docs/intent/store-and-transport/store-and-transport-specs.md` (15 specs)
 
 ### Tests
 - `src/store.rs:111-167` — round-trip, prefix listing, idempotent delete, failing store
@@ -52,10 +52,10 @@ storage failure one honest vocabulary.
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
 | Storage seam | STORE-001 to -005 | 5 | 0 | 0 |
-| Failure vocabulary | STORE-006 to -009 | 4 | 0 | 0 |
+| Failure vocabulary | STORE-006 to -009, -014, -015 | 6 | 0 | 0 |
 | Transport | STORE-010 to -013 | 4 | 0 | 0 |
 
-**Summary:** 13 of 13 active specs implemented; 0 deferred.
+**Summary:** 15 of 15 active specs implemented; 0 deferred.
 
 ## Key Findings
 
@@ -75,11 +75,12 @@ storage failure one honest vocabulary.
    back to a fixed error body (`admin.rs:27-28`).
 6. **An absent `:slug` is impossible for a matched route**, so `lib.rs:81-83`
    falls back to an empty string, which then fails validation downstream.
-7. **Seven specs have no test citing them** — STORE-011, -012 and -013 live in
+7. **Eight specs have no test citing them** — STORE-011, -012 and -013 live in
    `src/lib.rs`, excluded from the coverage gate by design; STORE-005's cursor
    loop is unreachable through the fake; STORE-002 and -010 are structural,
    proven by the suite's existence rather than by an assertion; STORE-008's
-   fallback cannot be reached, since serializing owned types does not fail.
+   fallback cannot be reached, since serializing owned types does not fail;
+   STORE-015 is admin-page behavior with no JavaScript harness.
 
 ## Work Required
 

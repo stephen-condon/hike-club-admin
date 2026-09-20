@@ -76,9 +76,16 @@ cannot be parsed counts as stale — something is wrong with it either way. Only
 scheduled hike can be stale; an empty slot is just empty.
 
 The flag travels on `HikeSummary.stale` and the list renders it as *"already
-past, needs a new date"* in the alert colour. The hero picks the earliest
-scheduled non-stale hike, so a stale record drops out of the hero and appears
-only as a flagged row.
+past, needs a new date"* in the alert colour.
+
+The hero escalates it. It shows the earliest scheduled non-stale hike when one
+exists; when none does but a stale record remains, it shows the most recently
+ended stale hike in the alert treatment — *"ended 7 days ago — still being
+served as the next hike"* — rather than falling through to the empty state. A
+stale record is not an absence of a hike; it is the public API actively serving
+last hike's observed weather as a forecast, and the most prominent element on
+the page is where that belongs. The empty state is reserved for a club with no
+scheduled hike at all.
 
 ## Authoring Surface
 
@@ -115,8 +122,10 @@ issues `PUT /api/hikes/{slug}` and then, only if a file was chosen,
 | Summary assembly | One prefix listing, then fetch only existing records | A GET per location; store a precomputed index | Two objects per location means one page covers the bucket today. A precomputed index would be a second thing to keep coherent. |
 | Corrupt record in a listing | Fail the whole listing with 502 | Skip the row; report it unscheduled | Reporting unscheduled is a lie precisely when the admin needs the truth. |
 | Delete semantics | Record only; the trail map stays | Delete both objects | Rescheduling the same location shouldn't need a map re-upload. Orphaning is recoverable, deleting is not. |
-| Blaze colour source | First trail name, carried on the summary | Fetch each record to render the list; a per-location colour field | `[inferred]` — the comment at `index.html:183-185` explains the blaze convention; carrying it on the summary also saves a GET per row. Whether *first* trail is deliberate is unconfirmed. |
-| Form defaults | Next Saturday, 09:00–11:00 | No defaults; last-used values | `[inferred]` — encodes a club cadence stated nowhere in the repo. |
+| Blaze colour source | First trail name, carried on the summary | Fetch each record to render the list; a per-location colour field | Trails are entered in the order they are walked and the first is the one the hike is named for, so its blaze is the right one. Carrying it on the summary also saves a GET per row. |
+| Form defaults | Next Saturday, 09:00–11:00 | No defaults; last-used values; a configured cadence | The club hikes Saturday mornings, so the default is right almost every time. A configurable cadence would add a stored value and a settings surface for something one person changes rarely. |
+| Hero when only stale records remain | Show the stale hike in the alert treatment | Fall through to the empty state; show nothing | A stale record means the public API is serving stale weather as a forecast *now*. "No hike scheduled" is true but underplays an active fault; the hero is the most prominent place to state it. |
+| Row element tracking | A slug-to-element `Map` | Stash the DOM node on the fetched summary object | Keeps view state off fetched data for the same line count. |
 
 ## Open Questions & Future Decisions
 
@@ -125,16 +134,18 @@ issues `PUT /api/hikes/{slug}` and then, only if a file was chosen,
    links win over history (`admin.rs:299-314` asserts it).
 2. ✅ Unscheduling leaves the trail map behind (`admin.rs:448-460` asserts it).
 
+3. ✅ The hero surfaces a stale hike rather than falling through to the empty
+   state (HIKE-UI-007). The empty state now means no scheduled hike at all.
+4. ✅ The next-Saturday, 09:00–11:00 default matches the club's cadence and is
+   recorded as intent rather than inference.
+5. ✅ The first trail is the one the hike is named for, so its blaze is the
+   right one; recorded as intent rather than inference.
+6. ✅ Row elements are tracked in a slug-to-element `Map`, and the page-level
+   note is `statusNote` rather than shadowing `window.status`.
+
 ### Deferred
-1. Should the hero ever surface a *stale* hike instead of falling through to the
-   empty state? Today a club with one stale record sees "No hike scheduled" in
-   the hero and the flagged row below.
-2. Is the next-Saturday default correct, and should it follow a configured club
-   cadence rather than being hard-coded?
-3. `hike.element` stashes row DOM on the fetched summary object
-   (`index.html:312`) so the save path can flash the row. Works; worth revisiting
-   if the list gains any other view state.
-4. `const status` (`index.html:194`) shadows `window.status`.
+
+_None._
 
 ## References
 

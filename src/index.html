@@ -200,9 +200,11 @@ const BLAZE = {
 };
 
 const $ = (id) => document.getElementById(id);
-const status = $("status");
+const statusNote = $("status");
 let hikes = [];
 let orphans = [];
+// Row elements by slug, so the save flash doesn't ride on the fetched data.
+const rowElements = new Map();
 let locations = [];
 let editing = null;
 
@@ -243,6 +245,13 @@ function readable(hike) {
   return `${day}, ${hours}`;
 }
 
+// Whole days between a past instant and today's midnight.
+function daysSince(when) {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  return Math.round((midnight - new Date(when)) / 86400000);
+}
+
 function daysAway(hike) {
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
@@ -250,15 +259,39 @@ function daysAway(hike) {
   return Math.round((start - midnight) / 86400000);
 }
 
-// @spec HIKE-UI-001, HIKE-UI-002
+// @spec HIKE-UI-001, HIKE-UI-002, HIKE-UI-007
 function renderNext() {
-  const upcoming = hikes
-    .filter((h) => h.scheduled && !h.stale)
+  const scheduled = hikes.filter((h) => h.scheduled);
+  const upcoming = scheduled
+    .filter((h) => !h.stale)
     .sort((a, b) => a.start.localeCompare(b.start))[0];
   const section = $("next");
   section.replaceChildren();
 
   if (!upcoming) {
+    // A stale record is worse than an empty slate: the public API is serving
+    // its observed weather as a forecast right now, so it takes the hero.
+    const stale = scheduled
+      .filter((h) => h.stale)
+      .sort((a, b) => b.end.localeCompare(a.end))[0];
+
+    if (stale) {
+      const heading = document.createElement("h1");
+      heading.textContent = stale.fullName;
+      const when = document.createElement("p");
+      when.className = "when";
+      when.textContent = readable(stale) + " ";
+      const ago = daysSince(stale.end);
+      const flag = document.createElement("span");
+      flag.className = "countdown late";
+      flag.textContent =
+        (ago === 0 ? "ended today" : ago === 1 ? "ended yesterday" : `ended ${ago} days ago`) +
+        " — still being served as the next hike";
+      when.append(flag);
+      section.append(heading, when);
+      return;
+    }
+
     const heading = document.createElement("h1");
     heading.textContent = "No hike scheduled";
     const hint = document.createElement("p");
@@ -287,6 +320,7 @@ function renderNext() {
 function renderList() {
   const list = $("list");
   list.replaceChildren();
+  rowElements.clear();
 
   for (const hike of hikes) {
     const item = document.createElement("li");
@@ -324,7 +358,7 @@ function renderList() {
     row.addEventListener("click", () => openHike(hike));
     item.append(row);
     list.append(item);
-    hike.element = row;
+    rowElements.set(hike.shortName, row);
   }
 }
 
@@ -356,9 +390,9 @@ async function load() {
     renderNext();
     renderList();
     renderOrphans();
-    say(status, "");
+    say(statusNote, "");
   } catch (error) {
-    say(status, `Could not load hikes. ${error.message}`, true);
+    say(statusNote, `Could not load hikes. ${error.message}`, true);
   }
 }
 
@@ -430,7 +464,7 @@ async function saveHike() {
     const saved = editing.shortName;
     $("hike-sheet").close();
     await load();
-    hikes.find((h) => h.shortName === saved)?.element?.classList.add("saved");
+    rowElements.get(saved)?.classList.add("saved");
   } catch (error) {
     say(note, error.message, true);
   } finally {
@@ -443,7 +477,7 @@ async function unschedule() {
     await api(`/api/hikes/${editing.shortName}`, { method: "DELETE" });
     await load();
   } catch (error) {
-    say(status, error.message, true);
+    say(statusNote, error.message, true);
   }
 }
 
@@ -488,7 +522,7 @@ async function openLocations() {
     for (const location of locations) rows.append(locationRow(location, true));
     $("loc-sheet").showModal();
   } catch (error) {
-    say(status, error.message, true);
+    say(statusNote, error.message, true);
   }
 }
 

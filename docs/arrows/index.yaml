@@ -15,15 +15,15 @@ taxonomy:
 
 arrows:
   hike-record:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-09-19
-    audited: 2026-09-19
-    audited_sha: c911233
+    audited: 2026-09-20
+    audited_sha: 6e3a7ba
     blocks: [contract]
     blockedBy: [trust-boundary, location-mapping, store-and-transport]
     detail: hike-record.md
-    next: "Confirm or refute the two [inferred] decisions: next-Saturday default and first-trail blaze."
+    next: null
     drift: null
 
   trail-map:

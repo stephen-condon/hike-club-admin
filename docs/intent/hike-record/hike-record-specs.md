@@ -35,7 +35,8 @@ staleness, and the authoring surface. Prefix `HIKE`; see
 ## Authoring Surface
 
 - [x] **HIKE-UI-001**: The admin page shall show the earliest scheduled, non-stale hike as the page hero, with a countdown reading "today", "tomorrow", or a number of days.
-- [x] **HIKE-UI-002**: While no scheduled, non-stale hike exists, the admin page shall show an empty hero directing the admin to add a location or set a date, according to whether any location exists.
+- [x] **HIKE-UI-002**: While no hike is scheduled at any location, the admin page shall show an empty hero directing the admin to add a location or set a date, according to whether any location exists.
+- [x] **HIKE-UI-007**: While no scheduled non-stale hike exists but at least one stale hike does, the admin page shall show the most recently ended stale hike as the hero in the alert treatment, stating how long ago it ended and that it is still being served as the next hike.
 - [x] **HIKE-UI-003**: When the admin opens a location that has no scheduled hike, the admin page shall default the form to the next Saturday, 09:00 to 11:00.
 - [x] **HIKE-UI-004**: When the admin saves a hike, the admin page shall build `start` and `end` as RFC 3339 using the browser's UTC offset **for the chosen date**, so a summer and a winter hike carry different offsets without a server-side timezone table.
 - [x] **HIKE-UI-005**: When displaying a stored timestamp, the admin page shall read its wall-clock date and time from the string literally rather than converting the instant into the viewer's timezone.

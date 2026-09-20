@@ -1,0 +1,84 @@
+# Arrow: location-mapping
+
+Custody of `resources/hike-locations.json` — the list of preserves the club
+hikes, which doubles as the allowlist of R2 keys this worker may write.
+
+## Status
+
+**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
+from existing code; behavior fully observed, no gaps found.
+
+## References
+
+### HLD
+- `docs/high-level-design.md` — Approach, System Design
+
+### LLD
+- `docs/intent/location-mapping/location-mapping-design.md`
+
+### EARS
+- `docs/intent/location-mapping/location-mapping-specs.md` (12 specs)
+
+### Tests
+- `src/admin.rs:529-600` — read, replace, allowlist effect, orphaning
+- `src/admin.rs:674-687` — 502 paths
+- `src/validate.rs:426-470` — list validation rules
+
+### Code
+- `src/admin.rs:65-75` — `read_locations`, absent-reads-as-empty
+- `src/admin.rs:175-201` — `get_locations`, `put_locations`
+- `src/validate.rs:159-193` — `validate_locations`
+- `src/models.rs:51-61` — `HikeLocation`, `LOCATIONS_KEY`
+- `src/index.html:410-465` — locations editor
+
+## Architecture
+
+**Purpose:** Decide which preserves exist. Because a write is only permitted to
+a slug in this list, the mapping is simultaneously a UI convenience and the
+security allowlist.
+
+**Key Components:**
+1. `validate_locations` (`validate.rs:161`) — shape, size, and uniqueness.
+2. `read_locations` (`admin.rs:65`) — the absent-means-empty rule every other
+   handler depends on.
+3. `put_locations` (`admin.rs:185`) — whole-list replacement.
+4. Locations editor (`index.html:410-465`) — add/remove rows, save the list.
+
+## Spec Coverage
+
+| Category | Spec IDs | Implemented | Deferred | Gaps |
+|----------|----------|-------------|----------|------|
+| Storage and reading | LOC-001 to -003 | 3 | 0 | 0 |
+| Validation | LOC-004 to -008 | 5 | 0 | 0 |
+| Consequences and UI | LOC-009 to -012 | 4 | 0 | 0 |
+
+**Summary:** 12 of 12 active specs implemented; 0 deferred.
+
+## Key Findings
+
+1. **This file is the allowlist** — `validate_known_slug` (`validate.rs:73`)
+   consults it on every record and map write, so adding a location is the act
+   that makes it writable. `admin.rs:545-565` asserts exactly that.
+2. **Absent reads as empty, deliberately** — the bucket starts without the
+   object and `hike-club-api` falls back to its embedded copy until this worker
+   writes one (`admin.rs:67-72`). An empty mapping therefore means "nothing is
+   schedulable yet," not an error.
+3. **Removal orphans rather than deletes** — dropping a location leaves its
+   record and map in the bucket, so re-adding it restores the hike intact
+   (`admin.rs:587-600`).
+4. **Whole-list replacement** — there is no per-location add or remove endpoint;
+   the editor sends the entire list every time.
+
+## Work Required
+
+### Must Fix
+_None._
+
+### Should Fix
+_None._
+
+### Nice to Have
+1. Orphaned records and maps from removed locations are invisible in the UI and
+   never reclaimed. Consider surfacing them.
+2. Whole-list replacement has a last-writer-wins race. Single-user today, so it
+   has never mattered.

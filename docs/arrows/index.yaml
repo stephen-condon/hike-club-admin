@@ -1,0 +1,91 @@
+schema_version: 2
+last_updated: 2026-09-19
+
+# Organizational only. Three stored objects, two guarantees that protect them,
+# one layer of plumbing underneath.
+taxonomy:
+  stored-objects:
+    - hike-record
+    - trail-map
+    - location-mapping
+  guarantees:
+    - trust-boundary
+    - contract
+  plumbing: standalone
+
+arrows:
+  hike-record:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: [contract]
+    blockedBy: [trust-boundary, location-mapping, store-and-transport]
+    detail: hike-record.md
+    next: "Confirm or refute the two [inferred] decisions: next-Saturday default and first-trail blaze."
+    drift: null
+
+  trail-map:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: []
+    blockedBy: [trust-boundary, location-mapping, store-and-transport]
+    detail: trail-map.md
+    next: "Decide whether the 415/413/400 split should drive distinct UI copy, or correct the comment claiming it does."
+    drift: null
+
+  location-mapping:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: [hike-record, trail-map]
+    blockedBy: [trust-boundary, store-and-transport]
+    detail: location-mapping.md
+    next: "Decide whether orphaned records and maps from removed locations should be surfaced."
+    drift: null
+
+  trust-boundary:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: [hike-record, trail-map, location-mapping, contract]
+    blockedBy: []
+    detail: trust-boundary.md
+    next: "Record why read paths check slug shape but not membership, so the asymmetry is not 'fixed' later."
+    drift: null
+
+  store-and-transport:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: [hike-record, trail-map, location-mapping, contract]
+    blockedBy: []
+    detail: store-and-transport.md
+    next: "Split 'transport' into its own leaf if src/lib.rs grows beyond glue; it holds two purposes today."
+    drift: null
+
+  contract:
+    status: MAPPED
+    parent: null
+    sampled: 2026-09-19
+    audited: 2026-09-19
+    audited_sha: c911233
+    blocks: []
+    blockedBy: [trust-boundary, hike-record, store-and-transport]
+    detail: contract.md
+    next: "Decide whether the Rust types should also reject unknown request fields, as the spec already does."
+    drift: null
+
+unmapped:
+  docs:
+    intent: []

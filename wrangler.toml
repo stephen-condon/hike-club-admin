@@ -1,0 +1,19 @@
+name = "hike-club-admin"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-07-10"
+
+[build]
+# RUSTFLAGS enables the wasm reference-types feature, required by wasm-bindgen
+# to generate catch wrappers for this version of the worker/wasm-bindgen toolchain.
+command = "cargo install worker-build --version 0.8.5 --locked || true && RUSTFLAGS='-C target-feature=+reference-types' worker-build --release"
+
+# Same bucket the public API reads. This worker is the only writer.
+[[r2_buckets]]
+binding = "HIKES"
+bucket_name = "hike-club-api"
+
+# Auth is Cloudflare Access, attached to this Worker in the dashboard
+# (Workers & Pages -> hike-club-admin -> Access). Access rejects unauthenticated
+# requests before the Worker runs, so there are no secrets and no auth code here.
+#
+# ponytail: no preview env — it would write to the same single real bucket.

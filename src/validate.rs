@@ -71,6 +71,11 @@ pub fn validate_slug(slug: &str) -> Checked<()> {
 /// A well-formed slug that is also a *known* location. Writes are confined to
 /// locations that exist, so the mapping doubles as the allowlist of keys this
 /// worker may create.
+///
+/// Read and delete paths deliberately call [`validate_slug`] alone rather than
+/// this: they create nothing, so the pattern is the whole defence, checking
+/// membership would cost a mapping fetch per read, and an unknown location is
+/// better answered 404 ("no hike scheduled") than 400 ("unknown location").
 // @spec TRUST-009, LOC-009
 pub fn validate_known_slug(slug: &str, locations: &[HikeLocation]) -> Checked<()> {
     validate_slug(slug)?;

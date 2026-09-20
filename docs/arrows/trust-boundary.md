@@ -5,8 +5,9 @@ server-side derivation of every R2 key this worker touches.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
-from existing code; behavior fully observed, no gaps found.
+**AUDITED** — last audited 2026-09-20 (git SHA `dd66141`). Specs verified
+against code: all 9 carry `@spec` citations, both deferred questions are
+resolved, and the read/write asymmetry is now recorded at its call site.
 
 ## References
 
@@ -66,9 +67,11 @@ key is constructed from a slug that has been proven well-formed *and* known.
 4. **Two-stage check** — well-formedness alone is not enough; a write also needs
    the slug to name a known location, so the allowlist and the pattern are
    independent defences.
-5. **Read paths check shape only** — `get_hike`, `get_map` and `delete_hike`
-   call `validate_slug` but not `validate_known_slug`, so a well-formed unknown
-   slug yields 404 rather than 400. Writes check both.
+5. **Read paths check shape only, deliberately** — `get_hike`, `get_map` and
+   `delete_hike` call `validate_slug` but not `validate_known_slug`. They create
+   nothing, membership would cost a mapping fetch per read, and 404 is the
+   better answer than 400 for a location with no hike. Recorded on
+   `validate_known_slug` (`validate.rs:70-81`).
 6. **TRUST-006 has no test citing it** — that the request type has no `id` or
    `mapKey` field is enforced by the type system; there is no runtime behavior
    to assert. `contract.rs:242-261` covers the spec side instead.
@@ -82,5 +85,4 @@ _None._
 _None._
 
 ### Nice to Have
-1. Finding 5 is a deliberate-looking asymmetry with no comment explaining it.
-   Confirm the intent so it does not get "fixed" later.
+_None._

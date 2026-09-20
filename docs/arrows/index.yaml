@@ -51,15 +51,15 @@ arrows:
     drift: null
 
   trust-boundary:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-09-19
-    audited: 2026-09-19
-    audited_sha: c911233
+    audited: 2026-09-20
+    audited_sha: dd66141
     blocks: [hike-record, trail-map, location-mapping, contract]
     blockedBy: []
     detail: trust-boundary.md
-    next: "Record why read paths check slug shape but not membership, so the asymmetry is not 'fixed' later."
+    next: null
     drift: null
 
   store-and-transport:

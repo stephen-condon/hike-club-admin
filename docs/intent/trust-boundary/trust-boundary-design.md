@@ -56,6 +56,11 @@ These two functions (`models.rs:29,36`) are the only places an R2 key is built.
 (`validate.rs:155`), so even the value stored *inside* the record is derived,
 never echoed.
 
+The longest key either function can produce is 78 bytes — `hikes/` plus a
+64-character slug plus `/map.png` — against R2's 1024-byte key limit. The slug
+cap bounds key length with 946 bytes to spare, so no separate key-length check
+is reachable.
+
 `HikeRequest` has no `id` and no `mapKey` field. That absence is the control,
 not an oversight — deserialization has nowhere to put a smuggled key, and
 `openapi.yaml` marks the schema `additionalProperties: false` so the contract
@@ -86,13 +91,16 @@ bucket still holds only what it held before.
    (`validate.rs:330-335` and `contract.rs:242-261` assert both sides).
 2. ✅ A rejected request writes nothing.
 
+3. ✅ Read and delete paths check slug shape but not membership, and that is
+   deliberate: they create nothing, membership would cost a mapping fetch per
+   read, and 404 is the better answer for a location with no hike. Recorded on
+   `validate_known_slug` so the asymmetry is not "fixed" later.
+4. ✅ The 64-character slug cap bounds key length implicitly and sufficiently —
+   78 bytes at most against R2's 1024-byte limit.
+
 ### Deferred
-1. Read and delete paths check slug shape but not membership, while writes check
-   both. This looks deliberate — a read cannot create an object, and skipping
-   the check avoids a mapping fetch — but no comment says so, so a future change
-   could "fix" the asymmetry and add a pointless round trip.
-2. A slug is capped at 64 characters, but nothing caps the resulting key length
-   explicitly. The cap is implicit in the slug limit plus the fixed prefixes.
+
+_None._
 
 ## References
 

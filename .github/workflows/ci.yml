@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  lint-pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      # Squash-and-merge uses the PR title as the commit message semantic-release
+      # parses, so an unconventional title means merging silently produces no
+      # release instead of failing loudly. Catch it here instead.
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint-commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - uses: wagoid/commitlint-github-action@v6
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      # src/lib.rs and src/r2_store.rs are Workers-runtime glue that can't
+      # execute outside a deployed worker; they're covered by `wrangler dev
+      # --remote` checks instead.
+      - name: Coverage gate (core logic, 85%)
+        run: |
+          cargo llvm-cov \
+            --ignore-filename-regex 'src/(lib|r2_store)\.rs$' \
+            --fail-under-lines 85
+
+  # No preview deploy: this worker writes to the one real bucket, so a preview
+  # environment would write there too. PRs are verified by the suite above and
+  # `wrangler dev --remote` locally.

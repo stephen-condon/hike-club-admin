@@ -7,6 +7,9 @@ pub trait AdminStore {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, String>;
     async fn put(&self, key: &str, body: Vec<u8>, content_type: &str) -> Result<(), String>;
     async fn delete(&self, key: &str) -> Result<(), String>;
+    /// Keys under `prefix`, used to answer "which locations have a hike, and a
+    /// map?" with one list instead of two GETs per location.
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, String>;
 }
 
 #[cfg(test)]
@@ -91,6 +94,17 @@ pub mod fake {
             self.objects.borrow_mut().remove(key);
             Ok(())
         }
+
+        async fn list(&self, prefix: &str) -> Result<Vec<String>, String> {
+            self.check()?;
+            Ok(self
+                .objects
+                .borrow()
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .cloned()
+                .collect())
+        }
     }
 }
 
@@ -132,11 +146,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_filters_by_prefix() {
+        let store = InMemoryStore::new()
+            .with_json("hikes/a.json", "{}")
+            .with_object("hikes/a/map.png", b"png", "image/png")
+            .with_json("resources/hike-locations.json", "[]");
+        let mut keys = store.list("hikes/").await.unwrap();
+        keys.sort();
+        assert_eq!(keys, vec!["hikes/a.json", "hikes/a/map.png"]);
+    }
+
+    #[tokio::test]
     async fn a_failing_store_fails_every_operation() {
         let store = InMemoryStore::failing();
         assert!(store.get("k").await.is_err());
         assert!(store.put("k", vec![], "text/plain").await.is_err());
         assert!(store.delete("k").await.is_err());
+        assert!(store.list("k").await.is_err());
         assert_eq!(store.read("k"), None);
     }
 }

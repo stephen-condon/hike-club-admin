@@ -43,4 +43,25 @@ impl AdminStore for R2Store {
     async fn delete(&self, key: &str) -> Result<(), String> {
         self.bucket.delete(key).await.map_err(|e| e.to_string())
     }
+
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, String> {
+        let mut keys = Vec::new();
+        let mut cursor: Option<String> = None;
+        // R2 pages at 1000 keys. The bucket holds two objects per location, so
+        // one page covers it today — the loop is here so it stays correct if
+        // the club ever outgrows that.
+        loop {
+            let mut builder = self.bucket.list().prefix(prefix);
+            if let Some(cursor) = cursor.take() {
+                builder = builder.cursor(cursor);
+            }
+            let page = builder.execute().await.map_err(|e| e.to_string())?;
+            keys.extend(page.objects().into_iter().map(|o| o.key()));
+            match page.cursor() {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+        Ok(keys)
+    }
 }

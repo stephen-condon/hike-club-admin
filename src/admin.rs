@@ -3,9 +3,10 @@
 //!
 //! Handlers return [`Outcome`], a status plus an already-serialized body, so
 //! `lib.rs` stays pure translation into `worker::Response`.
-use crate::models::{ErrorBody, HikeLocation, HikeRecord, HikeRequest, LOCATIONS_KEY};
+use crate::models::{ErrorBody, HikeLocation, HikeRecord, HikeRequest, HikeSummary, LOCATIONS_KEY};
 use crate::store::AdminStore;
 use crate::validate::{self, Invalid};
+use chrono::{DateTime, Utc};
 
 /// What a handler decided: an HTTP status and the bytes to send with it.
 #[derive(Debug, Clone, PartialEq)]
@@ -169,6 +170,77 @@ pub async fn put_map(
         Ok(()) => Outcome::no_content(),
         Err(e) => upstream(e),
     }
+}
+
+pub async fn get_locations(store: &impl AdminStore) -> Outcome {
+    match read_locations(store).await {
+        Ok(locations) => Outcome::json(200, &locations),
+        Err(outcome) => outcome,
+    }
+}
+
+/// Replaces the whole mapping. Removing a location leaves its record and map
+/// behind — they're separate objects, and orphaning them is recoverable while
+/// deleting them is not.
+pub async fn put_locations(store: &impl AdminStore, body: &[u8]) -> Outcome {
+    let locations: Vec<HikeLocation> = match serde_json::from_slice(body) {
+        Ok(l) => l,
+        Err(e) => return Outcome::error(400, format!("invalid locations JSON: {e}")),
+    };
+    if let Err(invalid) = validate::validate_locations(&locations) {
+        return invalid.into();
+    }
+    let encoded = match serde_json::to_vec(&locations) {
+        Ok(e) => e,
+        Err(e) => return Outcome::error(500, format!("could not encode locations: {e}")),
+    };
+    match store.put(LOCATIONS_KEY, encoded, "application/json").await {
+        Ok(()) => Outcome::json(200, &locations),
+        Err(e) => upstream(e),
+    }
+}
+
+/// One row per known location, with its hike if one is scheduled. A single
+/// prefix list answers "scheduled?" and "has a map?" for every location, so
+/// only the records that actually exist get fetched.
+pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome {
+    let locations = match read_locations(store).await {
+        Ok(l) => l,
+        Err(outcome) => return outcome,
+    };
+    let keys = match store.list("hikes/").await {
+        Ok(k) => k,
+        Err(e) => return upstream(e),
+    };
+
+    let mut summaries = Vec::with_capacity(locations.len());
+    for location in &locations {
+        let slug = &location.short_name;
+        let has_map = keys.contains(&HikeRecord::map_key_for(slug));
+        let record = if keys.contains(&HikeRecord::key(slug)) {
+            match load_record(store, slug).await {
+                Ok(record) => record,
+                Err(outcome) => return outcome,
+            }
+        } else {
+            None
+        };
+
+        summaries.push(HikeSummary {
+            short_name: slug.clone(),
+            full_name: location.full_name.clone(),
+            scheduled: record.is_some(),
+            // Only a scheduled hike can be stale; an empty slot is just empty.
+            stale: record
+                .as_ref()
+                .is_some_and(|r| validate::is_stale(&r.end, now)),
+            has_map,
+            start: record.as_ref().map(|r| r.start.clone()),
+            end: record.map(|r| r.end),
+        });
+    }
+
+    Outcome::json(200, &summaries)
 }
 
 #[cfg(test)]
@@ -441,5 +513,168 @@ mod tests {
                 .status,
             502
         );
+    }
+
+    fn at(when: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(when)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn summaries(outcome: &Outcome) -> Vec<serde_json::Value> {
+        serde_json::from_slice(&outcome.body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_locations_returns_the_stored_mapping() {
+        let outcome = get_locations(&seeded()).await;
+        assert_eq!(outcome.status, 200);
+        let locations = summaries(&outcome);
+        assert_eq!(locations.len(), 2);
+        assert_eq!(locations[0]["short_name"], "cantigny-park");
+    }
+
+    #[tokio::test]
+    async fn get_locations_is_empty_before_anything_is_written() {
+        let outcome = get_locations(&InMemoryStore::new()).await;
+        assert_eq!(outcome.status, 200);
+        assert!(summaries(&outcome).is_empty());
+    }
+
+    /// Adding a location is what makes it writable — the mapping is the
+    /// allowlist, so this is the step that unblocks PUT /api/hikes/{slug}.
+    #[tokio::test]
+    async fn adding_a_location_makes_it_schedulable() {
+        let store = seeded();
+        assert_eq!(
+            put_hike(&store, "oakhurst", REQUEST.as_bytes())
+                .await
+                .status,
+            400
+        );
+
+        let added = r#"[{"short_name":"oakhurst","full_name":"Oakhurst"}]"#;
+        assert_eq!(put_locations(&store, added.as_bytes()).await.status, 200);
+        assert_eq!(
+            put_hike(&store, "oakhurst", REQUEST.as_bytes())
+                .await
+                .status,
+            200
+        );
+    }
+
+    #[tokio::test]
+    async fn put_locations_rejects_invalid_lists() {
+        let store = seeded();
+        assert_eq!(put_locations(&store, b"not json").await.status, 400);
+
+        let dupes = r#"[{"short_name":"a","full_name":"A"},{"short_name":"a","full_name":"B"}]"#;
+        assert_eq!(put_locations(&store, dupes.as_bytes()).await.status, 400);
+
+        let bad_slug = r#"[{"short_name":"Not A Slug","full_name":"X"}]"#;
+        assert_eq!(put_locations(&store, bad_slug.as_bytes()).await.status, 400);
+
+        // Nothing was written by any of the above.
+        assert_eq!(get_locations(&store).await.body, seeded_locations_body());
+    }
+
+    fn seeded_locations_body() -> Vec<u8> {
+        let locations: Vec<HikeLocation> = serde_json::from_str(LOCATIONS).unwrap();
+        serde_json::to_vec(&locations).unwrap()
+    }
+
+    /// Removing a location orphans its record rather than deleting it, so the
+    /// hike comes back intact if the location is re-added.
+    #[tokio::test]
+    async fn removing_a_location_leaves_its_objects_alone() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_locations(&store, b"[]").await;
+
+        assert!(summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await).is_empty());
+        assert!(store.read("hikes/cantigny-park.json").is_some());
+
+        put_locations(&store, LOCATIONS.as_bytes()).await;
+        assert_eq!(get_hike(&store, "cantigny-park").await.status, 200);
+    }
+
+    #[tokio::test]
+    async fn list_reports_a_row_per_location_scheduled_or_not() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+
+        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["shortName"], "cantigny-park");
+        assert_eq!(rows[0]["scheduled"], true);
+        assert_eq!(rows[0]["start"], "2026-09-26T09:00:00-05:00");
+        assert_eq!(rows[1]["shortName"], "danada-equestrian-center");
+        assert_eq!(rows[1]["scheduled"], false);
+        assert_eq!(rows[1]["start"], serde_json::Value::Null);
+    }
+
+    /// The footgun this whole list exists to surface: a record whose end has
+    /// passed makes the public API serve the *last* hike's observed weather as
+    /// though it were current, silently.
+    #[tokio::test]
+    async fn list_flags_a_record_whose_end_has_passed() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+
+        let before = summaries(&list_hikes(&store, at("2026-09-26T15:59:59Z")).await);
+        assert_eq!(before[0]["stale"], false);
+
+        let after = summaries(&list_hikes(&store, at("2026-09-26T16:00:01Z")).await);
+        assert_eq!(after[0]["stale"], true);
+    }
+
+    #[tokio::test]
+    async fn an_unscheduled_location_is_never_stale() {
+        let rows = summaries(&list_hikes(&seeded(), at("2099-01-01T00:00:00Z")).await);
+        assert_eq!(rows[0]["scheduled"], false);
+        assert_eq!(rows[0]["stale"], false);
+    }
+
+    #[tokio::test]
+    async fn list_reports_whether_a_map_is_uploaded() {
+        let store = seeded();
+        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        assert_eq!(rows[0]["hasMap"], false);
+
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        assert_eq!(rows[0]["hasMap"], true);
+    }
+
+    /// The map key is hikes/{slug}/map.png and the record is hikes/{slug}.json;
+    /// one prefix list returns both, and neither may be mistaken for the other.
+    #[tokio::test]
+    async fn a_map_alone_does_not_count_as_a_scheduled_hike() {
+        let store = seeded();
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        assert_eq!(rows[0]["scheduled"], false);
+        assert_eq!(rows[0]["hasMap"], true);
+    }
+
+    #[tokio::test]
+    async fn location_and_list_storage_failures_surface_as_502() {
+        let store = InMemoryStore::failing();
+        assert_eq!(get_locations(&store).await.status, 502);
+        assert_eq!(put_locations(&store, b"[]").await.status, 502);
+        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+    }
+
+    #[tokio::test]
+    async fn corrupt_stored_locations_are_502() {
+        let store = InMemoryStore::new().with_json(LOCATIONS_KEY, "{oops");
+        assert_eq!(get_locations(&store).await.status, 502);
+        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+    }
+
+    #[tokio::test]
+    async fn a_corrupt_record_fails_the_list_rather_than_lying_about_it() {
+        let store = seeded().with_json("hikes/cantigny-park.json", "{oops");
+        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
     }
 }

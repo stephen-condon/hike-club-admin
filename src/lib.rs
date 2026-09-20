@@ -24,6 +24,19 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     Router::new()
         .get_async("/health", |_, _| async { Response::ok("ok") })
+        .get_async("/api/locations", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::get_locations(&store).await)
+        })
+        .put_async("/api/locations", |mut req, ctx| async move {
+            let store = store(&ctx)?;
+            let body = req.bytes().await?;
+            respond(admin::put_locations(&store, &body).await)
+        })
+        .get_async("/api/hikes", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::list_hikes(&store, chrono::Utc::now()).await)
+        })
         .get_async("/api/hikes/:slug", |_, ctx| async move {
             let store = store(&ctx)?;
             respond(admin::get_hike(&store, slug(&ctx)).await)

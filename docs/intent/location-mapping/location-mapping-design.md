@@ -9,7 +9,8 @@ prefix: LOC
 
 `resources/hike-locations.json` lists the preserves the club hikes: a short name
 used in URLs and R2 keys, and a display name shown in the app. The public API
-serves this same object from this same key.
+reads this same object from this same key and serves it as `GET /hike-locations`;
+it holds no copy of its own.
 
 It carries a second job that is easy to miss. Every write to the bucket is
 checked against it — a hike record or a trail map may only be written for a slug
@@ -38,10 +39,13 @@ one bad entry leaves the stored mapping untouched
 ## Absent Means Empty
 
 `read_locations` treats a missing object as an empty list rather than an error.
-The bucket genuinely starts without it, and `hike-club-api` falls back to its
-own embedded copy until this worker writes one. The consequence is that a fresh
-bucket rejects every hike write with "unknown location" rather than 500 — which
-is correct, if initially confusing: the admin must add a location first.
+The bucket genuinely starts without it, and saving the first location is what
+creates it. The consequence is that a fresh bucket rejects every hike write with
+"unknown location" rather than 500 — which is correct, if initially confusing:
+the admin must add a location first. Until then the public API answers
+`GET /hike-locations` with `500 server misconfigured: location list not found`
+(`api:API-LOC-005`), so the first save here is also what brings the app's
+location picker online.
 
 A mapping that *exists* but is not valid JSON is a different situation and
 surfaces as 502.
@@ -90,7 +94,7 @@ invariant the editor already prevents.
 | Decision | Chosen | Alternatives Considered | Rationale |
 |---|---|---|---|
 | Allowlist source | The location mapping itself | A separate allowlist object; a hardcoded list; no allowlist | One list cannot disagree with itself. A separate allowlist would be a second thing to keep in step, and the failure mode of drift is an unwritable or over-writable key. |
-| Absent object | Reads as an empty list | 404; 500; create it lazily | The bucket's real starting state, and the public API already falls back to its embedded copy. An error would make a fresh deployment look broken. |
+| Absent object | Reads as an empty list | 404; 500; create it lazily | The bucket's real starting state, and the admin's editor is how it stops being absent. An error here would block the one action that fixes it. |
 | Update granularity | Replace the whole list | Per-entry POST/DELETE; JSON Patch | A handful of preserves edited by one person. Whole-list replacement needs no merge semantics. |
 | Removing a location | Leaves its record and map in place | Cascade-delete both objects | Orphaning is recoverable; deleting is not. A mis-click should not destroy a hike. |
 | Duplicate detection | Reject the whole list | Keep the first; keep the last | A duplicate short name means two display names competing for one R2 key. There is no safe automatic answer. |
@@ -124,4 +128,4 @@ invariant the editor already prevents.
 - `docs/intent/trust-boundary/` — the slug rules each `short_name` must satisfy
 - `docs/intent/hike-record/` — what becomes writable once a location exists
 - `docs/intent/trail-map/` — the other object gated by this allowlist
-- `../hike-club-api` — reads this same key, with an embedded fallback
+- `../hike-club-api` — reads this same key and serves it; `500` when absent, `502` when unreadable (`api:API-LOC-005`, `-006`)

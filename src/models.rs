@@ -58,7 +58,7 @@ pub struct HikeRequest {
     pub trails: Vec<String>,
 }
 
-/// One entry of the location mapping served verbatim by the public API's
+/// One entry of the location mapping the public API serves as
 /// `GET /hike-locations`, stored at [`LOCATIONS_KEY`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HikeLocation {
@@ -66,8 +66,8 @@ pub struct HikeLocation {
     pub full_name: String,
 }
 
-/// R2 key of the location mapping. `hike-club-api` reads this same key, falling
-/// back to its embedded copy when the object is absent.
+/// R2 key of the location mapping. `hike-club-api` reads this same key and has
+/// no copy of its own, so it answers `500` while the object is absent.
 pub const LOCATIONS_KEY: &str = "resources/hike-locations.json";
 
 /// One row of the admin list: a location, plus its hike if one is scheduled.

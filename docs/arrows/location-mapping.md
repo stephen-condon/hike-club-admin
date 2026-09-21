@@ -66,8 +66,8 @@ security allowlist.
    consults it on every record and map write, so adding a location is the act
    that makes it writable. `admin.rs:545-565` asserts exactly that.
 2. **Absent reads as empty, deliberately** — the bucket starts without the
-   object and `hike-club-api` falls back to its embedded copy until this worker
-   writes one (`admin.rs:67-72`). An empty mapping therefore means "nothing is
+   object until this worker writes one, and `hike-club-api` answers `500` for
+   the list until then (`admin.rs:67-72`). An empty mapping therefore means "nothing is
    schedulable yet," not an error.
 3. **Removal orphans rather than deletes** — dropping a location leaves its
    record and map in the bucket, so re-adding it restores the hike intact

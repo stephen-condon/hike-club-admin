@@ -56,15 +56,20 @@ Everything runs in-process. No network, no deployed worker, no spun-up runtime
 
 ## Where Strictness Actually Lives
 
-`HikeRequest` and `HikeRecord` both set `additionalProperties: false`, which is
-what makes the spec reject a smuggled `id`. The Rust side does not mirror this:
-serde ignores unknown fields by default, so a body carrying `id` deserializes
-fine and the value is dropped.
+`HikeRequest` and `HikeRecord` both set `additionalProperties: false` in the
+spec. The implementation mirrors that on **`HikeRequest` only**, through
+`#[serde(deny_unknown_fields)]`: a body carrying a smuggled `id` or `mapKey` is
+now refused with a 400 rather than deserialized with the field dropped, so both
+sides reject for the same reason and the caller is told.
 
-That is safe — `build_record` derives `id` from the path regardless — but it
-means the two sides reject for different reasons. The spec rejects the request;
-the implementation ignores the field. Both prevent the attack; only the spec
-reports it.
+`HikeRecord` is deliberately left tolerant. It deserializes *stored* data, and
+the two boundaries want opposite things: at the input boundary an unexpected
+field is a caller error worth reporting, while at the storage boundary it is a
+record written by hand or by an older version, and refusing to read it would
+turn something recoverable into a 502 with no way to inspect it.
+
+So the asymmetry between spec and implementation is now confined to
+`HikeRecord`, and it is a choice rather than an oversight.
 
 ## Decisions & Alternatives
 
@@ -76,7 +81,9 @@ reports it.
 | Route comparison | Textual match against `src/lib.rs` | Parse the router; integration-test every route | Parsing needs a Workers runtime. The router is a dozen lines, so text matching is adequate and free. |
 | `nullable` handling | Hand-rolled desugaring | An OpenAPI-aware validator crate; drop `nullable` from the spec | One small function versus a heavier dependency in dev-deps. |
 | Cross-repo contract | Assert the exact field key set | Trust the schema; share a crate between repos | A shared crate would couple deploys. The key-set assertion fails here rather than in the public API's deserializer. |
-| Unknown request fields | Rejected by the spec, ignored by serde | `#[serde(deny_unknown_fields)]` on both | Not a decision anyone recorded — see Open Questions 1. |
+| Unknown request fields | `deny_unknown_fields` on `HikeRequest`; `HikeRecord` left tolerant | Strict on both; strict on neither | An unexpected field is a caller error at the input boundary and a readability hazard at the storage boundary. Strictness on stored data would turn a recoverable record into a 502. |
+| `mapKey` pattern drift | Assert a derived key against the spec's pattern | Trust the full-record schema test; generate one from the other | The full-record test exercises the pattern only incidentally, with one slug. Asserting the derivation directly is a few lines and fails on a change to either side. |
+| Route-check technique | Match source text in `src/lib.rs` | Parse the router; tolerate multi-line formatting | `cargo fmt` runs in the pre-commit hook and CI re-checks with `--check`, so a route split across lines cannot survive a commit. A parser would need a Workers runtime. |
 
 ## Open Questions & Future Decisions
 
@@ -86,15 +93,17 @@ reports it.
 2. ✅ Routes are compared with the spec in both directions
    (`contract.rs:306-338`).
 
+3. ✅ `HikeRequest` now carries `deny_unknown_fields`, so a smuggled field is
+   refused rather than dropped (CONTRACT-010). `HikeRecord` stays tolerant by
+   choice, for the reasons above.
+4. ✅ A derived map key is asserted against the spec's `mapKey` pattern
+   (CONTRACT-011), so the format string and the pattern cannot drift.
+5. ✅ The textual route check is adequate because `cargo fmt` in the pre-commit
+   hook keeps each route on one line, and CI re-checks with `--check`.
+
 ### Deferred
-1. The spec forbids unknown request fields; serde silently ignores them. Should
-   the Rust types carry `#[serde(deny_unknown_fields)]` so both sides reject for
-   the same reason? Behavior is safe either way.
-2. The route check matches source text, so a route written across multiple lines
-   between the method and its path string would be missed.
-3. Nothing asserts that `openapi.yaml`'s `mapKey` pattern
-   (`^hikes/[a-z0-9]+(-[a-z0-9]+)*/map\.png$`) stays in step with
-   `map_key_for`'s format string; they are independently maintained.
+
+_None._
 
 ## References
 

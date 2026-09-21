@@ -42,8 +42,15 @@ impl HikeRecord {
 
 /// The body of `PUT /api/hikes/{slug}`. Has no `id` or `mapKey`: both are
 /// derived from the path slug when the record is built.
+///
+/// `deny_unknown_fields` matches `additionalProperties: false` on the spec's
+/// `HikeRequest`, so a smuggled field is refused here for the same reason the
+/// spec refuses it rather than being silently dropped. [`HikeRecord`] is
+/// deliberately *not* strict: it deserializes stored data, where tolerating an
+/// unexpected field keeps a readable record readable.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-// @spec TRUST-006
+#[serde(deny_unknown_fields)]
+// @spec TRUST-006, CONTRACT-010
 pub struct HikeRequest {
     pub start: String,
     pub end: String,

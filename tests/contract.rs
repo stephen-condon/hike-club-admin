@@ -3,7 +3,9 @@
 //! read-only one doesn't — that the spec's own constraints are at least as
 //! strict as `validate.rs`. A limit tightened in one place and not the other
 //! fails here. Runs in-process: no network, no deployed worker.
-use hike_club_admin::models::{ErrorBody, HikeLocation, HikeRequest, HikeSummary, MeetingCoords};
+use hike_club_admin::models::{
+    ErrorBody, HikeLocation, HikeRecord, HikeRequest, HikeSummary, MeetingCoords,
+};
 use hike_club_admin::validate::{
     self, MAX_LOCATIONS, MAX_NAME_LEN, MAX_SLUG_LEN, MAX_TRAILS, build_record,
 };
@@ -271,6 +273,31 @@ fn spec_rejects_every_body_validate_rejects() {
 
     for (label, body) in cases {
         assert!(!validator.is_valid(&body), "spec should reject: {label}");
+    }
+}
+
+/// `map_key_for` builds the key from a format string while the spec pins it with
+/// a pattern, and the two are maintained by hand. Assert a real derived key
+/// against the real pattern so a change to either side fails here.
+#[test]
+// @spec CONTRACT-011
+fn a_derived_map_key_matches_the_spec_pattern() {
+    let spec = spec();
+    let pattern = spec["components"]["schemas"]["HikeRecord"]["properties"]["mapKey"]["pattern"]
+        .as_str()
+        .expect("HikeRecord.mapKey must carry a pattern");
+    let validator = jsonschema::validator_for(&serde_json::json!({
+        "type": "string",
+        "pattern": pattern,
+    }))
+    .expect("the mapKey pattern must compile");
+
+    for slug in ["cantigny-park", "a1", "pratts-wayne-woods-forest-preserve"] {
+        let key = HikeRecord::map_key_for(slug);
+        assert!(
+            validator.is_valid(&serde_json::json!(key)),
+            "derived key {key:?} does not match the spec pattern {pattern:?}"
+        );
     }
 }
 

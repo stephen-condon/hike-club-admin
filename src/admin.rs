@@ -424,6 +424,25 @@ mod tests {
         assert_eq!(outcome.status, 400);
     }
 
+    /// The spec sets additionalProperties:false; the implementation now agrees,
+    /// so a smuggled server-derived field is refused rather than dropped.
+    #[tokio::test]
+    // @spec CONTRACT-010
+    async fn put_rejects_a_body_carrying_a_server_derived_field() {
+        let store = seeded();
+        for smuggled in [
+            REQUEST.replace("\"trails\"", "\"id\":\"somewhere-else\",\"trails\""),
+            REQUEST.replace(
+                "\"trails\"",
+                "\"mapKey\":\"hikes/../secrets/map.png\",\"trails\"",
+            ),
+        ] {
+            let outcome = put_hike(&store, "cantigny-park", smuggled.as_bytes()).await;
+            assert_eq!(outcome.status, 400, "should refuse: {smuggled}");
+        }
+        assert_eq!(store.keys(), vec![LOCATIONS_KEY]);
+    }
+
     #[tokio::test]
     // @spec HIKE-REC-005
     async fn put_rejects_an_invalid_body() {

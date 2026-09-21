@@ -16,6 +16,8 @@ cross-repo record shape to each other. Prefix `CONTRACT`; see
 - [x] **CONTRACT-005**: The test suite shall assert that every request body the validator rejects also fails the spec's schema, including bodies carrying a `id` or `mapKey` the server derives.
 - [x] **CONTRACT-006**: The test suite shall assert, for each malformed slug, that both the spec's `Slug` schema and the validator reject it, and for each well-formed slug that both accept it.
 - [x] **CONTRACT-007**: The test suite shall compare the router's routes against the spec's paths in both directions, failing if the worker serves an undocumented route or the spec describes a route the worker does not serve.
+- [x] **CONTRACT-010**: The hike request type shall reject a body carrying any field it does not define, so the implementation refuses a smuggled `id` or `mapKey` for the same reason the spec does rather than silently ignoring it.
+- [x] **CONTRACT-011**: The test suite shall assert that a key produced by the server's map-key derivation validates against the spec's `mapKey` pattern, so the format string and the pattern cannot drift apart.
 
 ## Mechanics
 

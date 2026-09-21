@@ -5,8 +5,9 @@ router, and to the bytes `hike-club-api` deserializes.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-19 (git SHA `c911233`). Reverse-engineered
-from existing code. Owns no runtime behavior; see Key Findings.
+**AUDITED** — last audited 2026-09-20 (git SHA `c02926e`). Specs verified
+against code; all three deferred questions resolved, two of them by closing
+real drift risks.
 
 ## References
 
@@ -17,7 +18,7 @@ from existing code. Owns no runtime behavior; see Key Findings.
 - `docs/intent/contract/contract-design.md`
 
 ### EARS
-- `docs/intent/contract/contract-specs.md` (9 specs)
+- `docs/intent/contract/contract-specs.md` (11 specs)
 
 ### Tests
 - `tests/contract.rs` — the whole file is this segment's test surface
@@ -48,10 +49,10 @@ spec and router, this repo and `hike-club-api`.
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
 | Schema conformance | CONTRACT-001 to -003 | 3 | 0 | 0 |
-| Anti-drift assertions | CONTRACT-004 to -007 | 4 | 0 | 0 |
+| Anti-drift assertions | CONTRACT-004 to -007, -010, -011 | 6 | 0 | 0 |
 | Mechanics | CONTRACT-008 to -009 | 2 | 0 | 0 |
 
-**Summary:** 9 of 9 active specs implemented; 0 deferred.
+**Summary:** 11 of 11 active specs implemented; 0 deferred.
 
 ## Key Findings
 
@@ -64,10 +65,11 @@ spec and router, this repo and `hike-club-api`.
    fails the build.
 3. **Rejection parity runs both ways for slugs** — `contract.rs:271-299` asserts
    each bad slug fails *both* the `Slug` schema and `validate_slug`.
-4. **Smuggled `id`/`mapKey` are rejected by the spec** because both
-   `HikeRequest` and `HikeRecord` set `additionalProperties: false`
-   (`openapi.yaml:259,279`). Rust-side, serde simply ignores unknown fields, so
-   the spec is the stricter of the two.
+4. **Smuggled `id`/`mapKey` are now rejected by both sides** — the spec through
+   `additionalProperties: false`, the implementation through
+   `#[serde(deny_unknown_fields)]` on `HikeRequest`. `HikeRecord` stays tolerant
+   on purpose: it reads stored data, where refusing an unexpected field would
+   make a recoverable record unreadable.
 5. **Route comparison is textual** — it greps `src/lib.rs` for
    `.{method}_async("{route}"` and counts `_async("` occurrences
    (`contract.rs:321,332`). Crude by admission, and it needs no Workers runtime.
@@ -85,9 +87,5 @@ _None._
 _None._
 
 ### Nice to Have
-1. The textual route check would miss a route added with unusual formatting
-   (line breaks between the method and the path string). Tolerable while
-   `lib.rs` is 91 lines.
-2. Finding 4 means body-level strictness lives only in the spec. If the Rust
-   side should also reject unknown fields, that is `#[serde(deny_unknown_fields)]`
-   and a new spec.
+1. The textual route check would miss a route split across lines, which
+   `cargo fmt` in the pre-commit hook prevents from ever being committed.

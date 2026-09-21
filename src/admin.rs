@@ -72,8 +72,7 @@ fn upstream(message: String) -> Outcome {
 async fn read_locations(store: &impl AdminStore) -> Result<Vec<HikeLocation>, Outcome> {
     let bytes = store.get(LOCATIONS_KEY).await.map_err(upstream)?;
     // A missing mapping is an empty one: the bucket starts out without the
-    // object, and `hike-club-api` falls back to its embedded copy until this
-    // worker writes it.
+    // object until this worker writes it.
     let Some(bytes) = bytes else {
         return Ok(Vec::new());
     };
@@ -513,9 +512,9 @@ mod tests {
         );
     }
 
-    /// The bucket starts out without the mapping object; `hike-club-api` falls
-    /// back to its embedded copy until this worker writes one. An absent
-    /// mapping must not 500 — it just means nothing is writable yet.
+    /// The bucket starts out without the mapping object until this worker
+    /// writes one. An absent mapping must not 500 — it just means nothing is
+    /// writable yet.
     #[tokio::test]
     // @spec LOC-002
     async fn a_missing_locations_object_reads_as_empty() {

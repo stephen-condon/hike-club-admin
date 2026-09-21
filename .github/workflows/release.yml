@@ -6,12 +6,16 @@ on:
 
 permissions:
   contents: write
+  # semantic-release comments on the issues/PRs a release touches by default,
+  # which needs both grants beyond contents: write.
+  issues: write
+  pull-requests: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -24,7 +28,7 @@ jobs:
       - name: Test
         run: cargo test
 
-      - uses: cloudflare/wrangler-action@v3
+      - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -34,7 +38,7 @@ jobs:
       # route, so CI would need a service token to reach one. The deploy is
       # verified by opening the page.
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 

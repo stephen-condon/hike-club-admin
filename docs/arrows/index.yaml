@@ -27,15 +27,15 @@ arrows:
     drift: null
 
   trail-map:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-09-19
-    audited: 2026-09-19
-    audited_sha: c911233
+    audited: 2026-09-20
+    audited_sha: 7fbbdae
     blocks: []
     blockedBy: [trust-boundary, location-mapping, store-and-transport]
     detail: trail-map.md
-    next: "Decide whether a route should delete a trail map; removed locations orphan theirs indefinitely."
+    next: null
     drift: null
 
   location-mapping:

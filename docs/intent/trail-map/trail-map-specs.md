@@ -18,3 +18,10 @@ EARS specs for `hikes/{slug}/map.png`. Prefix `MAP`; see `trail-map-design.md`.
 - [x] **MAP-009**: If a trail map is requested for a location that has none, then the system shall respond 404.
 - [x] **MAP-010**: When a trail map is replaced, the system shall leave that location's hike record unchanged; and when a hike record is written or deleted, the system shall leave that location's trail map unchanged.
 - [x] **MAP-011**: When the admin page displays a trail map preview, it shall append a cache-busting query parameter so a replaced map is shown rather than a cached copy.
+
+## Removal
+
+- [x] **MAP-012**: When a trail map is deleted, the system shall remove only that location's map and shall leave its hike record in place.
+- [x] **MAP-013**: When a trail map is deleted for a location that has none, the system shall respond 204, so a repeated delete is safe.
+- [x] **MAP-014**: When deleting a trail map, the system shall require the slug to be well-formed but shall not require it to name a known location, so a map stranded by a removed location can still be cleared.
+- [x] **MAP-015**: While a location has a trail map, the scheduling sheet shall offer to remove it, and shall confirm before doing so.

@@ -43,6 +43,23 @@ shows the preview only when the summary row says `hasMap`, and appends a
 timestamp query parameter (`index.html:342`) so a replaced map is displayed
 rather than the browser's cached copy.
 
+## Removal
+
+`DELETE /api/map/{slug}` removes a location's map and leaves its hike record
+untouched, mirroring how `delete_hike` removes the record and leaves the map.
+It is idempotent: deleting a map that is not there is a 204.
+
+Like `delete_hike`, it checks slug **shape only** and not membership. Deleting
+creates nothing, so the pattern is the whole defence, and the case worth serving
+is precisely the one membership would block — clearing a map stranded by a
+location that has already been removed from the mapping. This is what
+TRUST-009 already allows for read and delete paths.
+
+The scheduling sheet offers *Remove map* whenever the location has one, and
+confirms first. Unscheduling is recoverable — the record can be re-entered from
+what the admin remembers — but a deleted map means finding the image file again,
+so it is the one destructive action in the tool that asks.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives Considered | Rationale |
@@ -52,7 +69,9 @@ rather than the browser's cached copy.
 | Rejected type | 415, distinct from 413 and 400 | A single 400 for every bad upload | Correct HTTP, and the sizes and types fail for genuinely different reasons. The distinction is carried to the admin by the message text, not by any branch in the page. |
 | Size ceiling | 5 MB | 2 MB; no limit | Roughly 5x the largest existing map, so it will not bite in practice, while still bounding a worker request. |
 | Content-type parsing | Split on `;`, compare case-insensitively | Exact string match | Browsers append parameters; an exact match would reject legitimate uploads. |
-| Delete behavior | No endpoint deletes a map | A DELETE route; delete alongside the record | Orphaning is recoverable, deleting is not; a map is replaced by uploading another. |
+| Delete behavior | A DELETE route, separate from the record's | Delete alongside the record; no delete at all | Symmetric with `delete_hike`, which already deletes a record without touching the map. Without it, a map stranded by a removed location could never be cleared. |
+| Delete gating | Slug shape only, not membership | Require a known location; require an *unknown* one | Deleting creates nothing, so shape is the whole defence — the same rule `delete_hike` follows. Requiring membership would block the stranded-map case the route exists for. |
+| Confirmation | Confirm before removing a map | Remove immediately, like unscheduling | Unscheduling is re-enterable from memory; a deleted map means finding the file again. The asymmetry is deliberate. |
 
 ## Open Questions & Future Decisions
 
@@ -64,9 +83,13 @@ rather than the browser's cached copy.
    page surfaces whichever message comes back (`index.html:199-205`). The only
    status the page distinguishes is 204.
 
+3. ✅ A trail map can now be deleted (MAP-012 to MAP-015), including one
+   stranded by a removed location. The record is untouched, and the sheet
+   confirms first.
+
 ### Deferred
-1. No route deletes a trail map. A location removed from the mapping leaves its
-   map in the bucket indefinitely.
+
+_None._
 
 ## References
 

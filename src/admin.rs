@@ -185,6 +185,21 @@ pub async fn put_map(
     }
 }
 
+/// Removes a location's trail map, leaving its hike record alone. Like
+/// [`delete_hike`], this checks slug *shape* only and not membership: deleting
+/// creates nothing, and the case worth serving is clearing a map stranded by a
+/// location that has already been removed.
+// @spec MAP-012, MAP-013, MAP-014
+pub async fn delete_map(store: &impl AdminStore, slug: &str) -> Outcome {
+    if let Err(invalid) = validate::validate_slug(slug) {
+        return invalid.into();
+    }
+    match store.delete(&HikeRecord::map_key_for(slug)).await {
+        Ok(()) => Outcome::no_content(),
+        Err(e) => upstream(e),
+    }
+}
+
 pub async fn get_locations(store: &impl AdminStore) -> Outcome {
     match read_locations(store).await {
         Ok(locations) => Outcome::json(200, &locations),
@@ -853,6 +868,59 @@ mod tests {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
         assert!(summaries(&list_orphans(&store).await).is_empty());
+    }
+
+    #[tokio::test]
+    // @spec MAP-012
+    async fn delete_map_removes_only_the_map() {
+        let store = seeded();
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+
+        assert_eq!(delete_map(&store, "cantigny-park").await.status, 204);
+        assert_eq!(get_map(&store, "cantigny-park").await.status, 404);
+        assert_eq!(get_hike(&store, "cantigny-park").await.status, 200);
+    }
+
+    #[tokio::test]
+    // @spec MAP-013
+    async fn delete_map_is_idempotent() {
+        let store = seeded();
+        assert_eq!(delete_map(&store, "cantigny-park").await.status, 204);
+        assert_eq!(delete_map(&store, "cantigny-park").await.status, 204);
+    }
+
+    /// The point of the route: clearing a map whose location is gone. Deleting
+    /// creates nothing, so shape alone is the right gate — same as delete_hike.
+    #[tokio::test]
+    // @spec MAP-014
+    async fn delete_map_works_for_a_slug_no_longer_in_the_mapping() {
+        let store = seeded();
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        put_locations(&store, b"[]").await;
+
+        assert_eq!(delete_map(&store, "cantigny-park").await.status, 204);
+        assert!(summaries(&list_orphans(&store).await).is_empty());
+    }
+
+    #[tokio::test]
+    // @spec MAP-014, TRUST-008
+    async fn delete_map_rejects_an_invalid_slug() {
+        let store = seeded();
+        put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
+        assert_eq!(delete_map(&store, "../secrets").await.status, 400);
+        assert_eq!(get_map(&store, "cantigny-park").await.status, 200);
+    }
+
+    #[tokio::test]
+    // @spec MAP-012, STORE-006
+    async fn delete_map_storage_failures_surface_as_502() {
+        assert_eq!(
+            delete_map(&InMemoryStore::failing(), "cantigny-park")
+                .await
+                .status,
+            502
+        );
     }
 
     #[tokio::test]

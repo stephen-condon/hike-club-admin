@@ -5,9 +5,9 @@ hike record for that location.
 
 ## Status
 
-**MAPPED** — last audited 2026-09-20 (git SHA `f1d3319`). Reverse-engineered
-from existing code; behavior fully observed, no gaps found. One inferred
-behavior confirmed since mapping: the upload statuses are not branched on.
+**AUDITED** — last audited 2026-09-20 (git SHA `7fbbdae`). Specs verified
+against code; the one deferred question closed by adding a delete route, so a
+map stranded by a removed location can now be cleared.
 
 ## References
 
@@ -18,7 +18,7 @@ behavior confirmed since mapping: the upload statuses are not branched on.
 - `docs/intent/trail-map/trail-map-design.md`
 
 ### EARS
-- `docs/intent/trail-map/trail-map-specs.md` (11 specs)
+- `docs/intent/trail-map/trail-map-specs.md` (15 specs)
 
 ### Tests
 - `src/admin.rs:416-517` — round-trip, key, independence from the record, 415/413/502
@@ -49,14 +49,16 @@ when the hike is.
 |----------|----------|-------------|----------|------|
 | Upload rules | MAP-001 to -007 | 7 | 0 | 0 |
 | Serving and UI | MAP-008 to -011 | 4 | 0 | 0 |
+| Removal | MAP-012 to -015 | 4 | 0 | 0 |
 
-**Summary:** 11 of 11 active specs implemented; 0 deferred.
+**Summary:** 15 of 15 active specs implemented; 0 deferred.
 
 ## Key Findings
 
-1. **The map outlives the record** — `delete_hike` removes only the JSON
-   (`admin.rs:124-134`), so rescheduling the same preserve needs no re-upload.
-   Asserted at `admin.rs:448-460`.
+1. **The map outlives the record, and is deleted on its own terms** —
+   `delete_hike` removes only the JSON (`admin.rs:124-134`), so rescheduling
+   needs no re-upload; `delete_map` removes only the image. Each is idempotent
+   and neither touches the other.
 2. **Distinct status codes are deliberate, and carried by message text** —
    415 for the wrong type, 413 for too large, 400 for empty, so the response
    names the actual reason. The admin page does not branch on them: every
@@ -66,8 +68,9 @@ when the hike is.
    existing maps run 280 KB to 1.1 MB.
 4. **Content-type parameters tolerated** — `image/PNG; charset=binary` passes
    (`validate.rs:198-207`), because browsers append them.
-5. **MAP-011 has no test citing it** — the preview cache-bust is admin-page
-   behavior and the project has no JavaScript test harness.
+5. **Two specs have no test citing them** — MAP-011 and MAP-015 are admin-page
+   behavior and the project has no JavaScript test harness. The delete route
+   itself has five tests.
 
 ## Work Required
 
@@ -78,5 +81,4 @@ _None._
 _None._
 
 ### Nice to Have
-1. No route deletes a trail map; a location removed from the mapping leaves its
-   map in the bucket indefinitely.
+_None._

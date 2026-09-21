@@ -170,6 +170,7 @@ input[type=date], input[type=time], input[type=text], input[type=number] {
       <button class="primary" id="save-hike" value="save">Save hike</button>
       <button class="ghost" value="cancel" formnovalidate>Cancel</button>
       <span class="spacer"></span>
+      <button class="ghost danger" id="remove-map" value="remove-map" formnovalidate hidden>Remove map</button>
       <button class="ghost danger" id="unschedule" value="unschedule" formnovalidate hidden>Unschedule</button>
     </div>
   </form>
@@ -401,6 +402,7 @@ async function openHike(hike) {
   editing = hike;
   $("hike-title").textContent = hike.fullName;
   $("unschedule").hidden = !hike.scheduled;
+  $("remove-map").hidden = !hike.hasMap;
   say($("hike-note"), "");
   $("f-file").value = "";
 
@@ -469,6 +471,22 @@ async function saveHike() {
     say(note, error.message, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+// Deleting a map is not undoable the way unscheduling is — the bytes are gone
+// and the file has to be found again — so this one asks first.
+// @spec MAP-015
+async function removeMap() {
+  if (!confirm(`Remove the trail map for ${editing.fullName}? The hike itself stays.`)) {
+    return;
+  }
+  try {
+    await api(`/api/map/${editing.shortName}`, { method: "DELETE" });
+    $("hike-sheet").close();
+    await load();
+  } catch (error) {
+    say($("hike-note"), error.message, true);
   }
 }
 
@@ -550,6 +568,9 @@ $("hike-form").addEventListener("submit", (event) => {
   if (event.submitter?.value === "save") {
     event.preventDefault();
     saveHike();
+  } else if (event.submitter?.value === "remove-map") {
+    event.preventDefault();
+    removeMap();
   } else if (event.submitter?.value === "unschedule") {
     unschedule();
   }

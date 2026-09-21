@@ -72,6 +72,10 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let body = req.bytes().await?;
             respond(admin::put_map(&store, slug(&ctx), content_type.as_deref(), body).await)
         })
+        .delete_async("/api/map/:slug", |_, ctx| async move {
+            let store = store(&ctx)?;
+            respond(admin::delete_map(&store, slug(&ctx)).await)
+        })
         .run(req, env)
         .await
 }

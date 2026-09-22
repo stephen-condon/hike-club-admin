@@ -47,10 +47,6 @@ tests + the coverage gate, commit-msg runs commitlint. Commits on `main` drive
 - **Handlers return `Outcome`** (status + serialized body), not
   `worker::Response`, so they stay runtime-free and testable. `lib.rs` only
   translates.
-- **Timestamps carry the hike's local offset.** The browser builds RFC 3339 from
-  its own offset *for the chosen date*, so CDT/CST needs no timezone table
-  server-side; stored strings are read back literally rather than shifted into
-  the viewer's zone. This assumes the admin browses from the club's timezone.
 - **`src/index.html` is the whole UI**, served via `include_str!` — no bundler,
   no framework, no static-assets binding. Mirrors how `hike-club-api` ships its
   location mapping.
@@ -65,11 +61,9 @@ Shared with `hike-club-api`; see that repo for the reader's side.
 | `hikes/{slug}/map.png` | one map per location, shared by every record for it |
 | `resources/hike-locations.json` | the mapping `GET /hike-locations` serves |
 
-Ids carry **no date** — `start`/`end` are the only record of when a hike is. A
-record left with a past `end` makes the API serve the previous hike's *observed*
-weather as though it were the forecast, silently; `GET /api/hikes` returns
-`stale: true` for those and the UI flags them. That failure mode is the reason
-this tool exists, so don't quietly drop the flag.
+Records carry **no date**. hike-club-app holds each hike's date and sends it as
+query parameters when it fetches trail info; this repo neither stores nor
+requires `start`/`end`.
 
 ## Contract testing
 

@@ -2,19 +2,16 @@
 
 ## Problem
 
-Hike records in the `hike-club-api` R2 bucket carry no date in their ids —
-`start`/`end` are the only record of when a hike is. A record left with a past
-`end` makes the public API serve the previous hike's *observed* weather as
-though it were a forecast, silently. There is no database and no admin surface,
-so correcting or rescheduling a hike means hand-editing R2 objects.
+Hike records in the `hike-club-api` R2 bucket are hand-edited JSON with no
+admin surface: scheduling or correcting a hike means editing an R2 object
+directly.
 
 ## Approach
 
 A single-page admin tool, served by a Rust Cloudflare Worker, that is the only
 writer to the `hike-club-api` bucket. It reads the same objects the public API
-reads, surfaces staleness, and validates every write at one trust boundary
-(`src/validate.rs`) so nothing reaches the bucket that the public API cannot
-deserialize.
+reads, and validates every write at one trust boundary (`src/validate.rs`) so
+nothing reaches the bucket that the public API cannot deserialize.
 
 ## Target Users
 
@@ -31,6 +28,9 @@ behind Cloudflare Access.
   unauthenticated requests before the Worker runs.
 - No database, no bundler, no framework, no static-assets binding.
 - No multi-user or multi-club support.
+- No hike date or time. The app sends each hike's window as query parameters
+  when it fetches trail info; the stored record carries no date, and this
+  repo has no view of when a hike is.
 
 ## Tenets
 
@@ -64,7 +64,6 @@ graph LR
 |---|---|---|
 | Hand-rolled slug matching, no `regex` crate | `regex` | One pattern does not justify the wasm binary bloat. |
 | `AdminStore` byte-blob trait | Test against real R2 | Keeps handler logic pure and covered; `R2Store` becomes pure translation. |
-| Timestamps carry the hike's local offset | Server-side timezone table | The browser builds RFC 3339 from its own offset for the chosen date; stored strings read back literally. Assumes the admin browses from the club's timezone. |
 | `openapi.yaml` as the contract, asserted in `tests/contract.rs` | Docs-only spec | Spec limits, rejected bodies, and router paths are all held equal to the code, so they cannot drift. |
 | Auth lives in Cloudflare Access, not in code | API key / session handling | Access rejects before the Worker runs; identity arrives as `Cf-Access-Authenticated-User-Email`. |
 

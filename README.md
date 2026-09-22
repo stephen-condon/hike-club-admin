@@ -9,15 +9,9 @@ It replaces editing JSON by hand and running `scripts/upload-hike.sh`.
 
 ## Why it exists
 
-Scheduling a hike used to mean editing a `location_based/*.json` template with
-the right CDT or CST offset, running an upload script, and — for a new location
-— committing to the API repo and redeploying it. Three steps, two repos, no
-feedback if you got one wrong.
-
-The failure that mattered most was silent: a record whose `end` has passed makes
-the public API fall back to *observed* weather and serve the last hike's
-conditions as though they were the forecast for the next one. Nothing errors.
-The list here flags those rows in red, which is most of the point.
+Scheduling a hike used to mean editing a JSON template by hand, running an
+upload script, and — for a new location — committing to the API repo and
+redeploying it. Three steps, two repos, no feedback if you got one wrong.
 
 ## What it manages
 

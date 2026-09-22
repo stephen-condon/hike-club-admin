@@ -70,8 +70,6 @@ fn locations() -> Vec<HikeLocation> {
 
 fn sample_request() -> HikeRequest {
     HikeRequest {
-        start: "2026-09-26T09:00:00-05:00".to_string(),
-        end: "2026-09-26T11:00:00-05:00".to_string(),
         meeting: MeetingCoords {
             lat: 41.855_026,
             lon: -88.152_169,
@@ -112,7 +110,7 @@ fn stored_hike_record_matches_spec() {
     let keys: Vec<_> = body.as_object().unwrap().keys().cloned().collect();
     assert_eq!(
         keys,
-        vec!["end", "id", "mapKey", "meeting", "start", "trails"],
+        vec!["id", "mapKey", "meeting", "trails"],
         "field names are read by hike-club-api/src/models.rs::HikeRecord"
     );
 }
@@ -126,22 +124,16 @@ fn hike_summary_matches_spec_scheduled_and_not() {
         short_name: "cantigny-park".to_string(),
         full_name: "Cantigny".to_string(),
         scheduled: true,
-        stale: false,
         has_map: true,
         trail: Some("Purple".to_string()),
-        start: Some("2026-09-26T09:00:00-05:00".to_string()),
-        end: Some("2026-09-26T11:00:00-05:00".to_string()),
     };
     let body = serde_json::to_value(&scheduled).unwrap();
     assert!(validator.is_valid(&body), "{body}");
 
     let unscheduled = HikeSummary {
         scheduled: false,
-        stale: false,
         has_map: false,
         trail: None,
-        start: None,
-        end: None,
         ..scheduled
     };
     let body = serde_json::to_value(&unscheduled).unwrap();
@@ -195,18 +187,8 @@ fn spec_rejects_every_body_validate_rejects() {
 
     let cases: Vec<(&str, serde_json::Value)> = vec![
         (
-            "missing start",
-            serde_json::json!({
-                "end": "2026-09-26T11:00:00-05:00",
-                "meeting": {"lat": 41.0, "lon": -88.0},
-                "trails": ["Purple"],
-            }),
-        ),
-        (
             "empty trails",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": -88.0},
                 "trails": [],
             }),
@@ -214,8 +196,6 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "too many trails",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": -88.0},
                 "trails": vec!["Loop"; MAX_TRAILS + 1],
             }),
@@ -223,8 +203,6 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "blank trail name",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": -88.0},
                 "trails": [""],
             }),
@@ -232,8 +210,6 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "latitude out of range",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 91.0, "lon": -88.0},
                 "trails": ["Purple"],
             }),
@@ -241,8 +217,6 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "longitude out of range",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": 181.0},
                 "trails": ["Purple"],
             }),
@@ -252,8 +226,6 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "smuggled mapKey",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": -88.0},
                 "trails": ["Purple"],
                 "mapKey": "hikes/../../secrets/map.png",
@@ -262,11 +234,19 @@ fn spec_rejects_every_body_validate_rejects() {
         (
             "smuggled id",
             serde_json::json!({
-                "start": "2026-09-26T09:00:00-05:00",
-                "end": "2026-09-26T11:00:00-05:00",
                 "meeting": {"lat": 41.0, "lon": -88.0},
                 "trails": ["Purple"],
                 "id": "somewhere-else",
+            }),
+        ),
+        // The record no longer carries a date; a body still sending one is
+        // an unknown field like any other.
+        (
+            "smuggled start",
+            serde_json::json!({
+                "meeting": {"lat": 41.0, "lon": -88.0},
+                "trails": ["Purple"],
+                "start": "2026-09-26T09:00:00-05:00",
             }),
         ),
     ];

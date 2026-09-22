@@ -289,27 +289,21 @@ components:
         maxLength: 100
     HikeRequest:
       type: object
-      required: [start, end, meeting, trails]
+      required: [meeting, trails]
       additionalProperties: false
       description: >
         The body of `PUT /api/hikes/{slug}`. Deliberately has no `id` or
-        `mapKey` — the server derives both from the path slug.
+        `mapKey` — the server derives both from the path slug. Carries no date
+        or time; hike-club-app holds each hike's date and sends it directly to
+        the public API.
       properties:
-        start:
-          type: string
-          format: date-time
-          description: RFC 3339, with the hike's local UTC offset.
-        end:
-          type: string
-          format: date-time
-          description: RFC 3339, strictly after `start`.
         meeting:
           $ref: "#/components/schemas/MeetingCoords"
         trails:
           $ref: "#/components/schemas/Trails"
     HikeRecord:
       type: object
-      required: [id, start, end, meeting, trails, mapKey]
+      required: [id, meeting, trails, mapKey]
       additionalProperties: false
       description: >
         The object stored at `hikes/{slug}.json`. This schema is the cross-repo
@@ -318,12 +312,6 @@ components:
       properties:
         id:
           $ref: "#/components/schemas/Slug"
-        start:
-          type: string
-          format: date-time
-        end:
-          type: string
-          format: date-time
         meeting:
           $ref: "#/components/schemas/MeetingCoords"
         trails:
@@ -355,7 +343,7 @@ components:
         $ref: "#/components/schemas/Orphan"
     HikeSummary:
       type: object
-      required: [shortName, fullName, scheduled, stale, hasMap]
+      required: [shortName, fullName, scheduled, hasMap]
       additionalProperties: false
       description: One row of the admin list — a location plus its hike, if any.
       properties:
@@ -366,12 +354,6 @@ components:
         scheduled:
           type: boolean
           description: Whether `hikes/{shortName}.json` exists.
-        stale:
-          type: boolean
-          description: >
-            True when the record's `end` is in the past. Such a record makes the
-            public API serve the *last* hike's observed weather as if it were
-            current, so the UI flags it.
         hasMap:
           type: boolean
         trail:
@@ -380,11 +362,3 @@ components:
           description: >
             The record's first trail. The UI colours each row with that trail's
             blaze colour, the way a trail is marked on a tree.
-        start:
-          type: string
-          format: date-time
-          nullable: true
-        end:
-          type: string
-          format: date-time
-          nullable: true

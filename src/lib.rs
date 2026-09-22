@@ -47,7 +47,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         })
         .get_async("/api/hikes", |_, ctx| async move {
             let store = store(&ctx)?;
-            respond(admin::list_hikes(&store, chrono::Utc::now()).await)
+            respond(admin::list_hikes(&store).await)
         })
         .get_async("/api/hikes/:slug", |_, ctx| async move {
             let store = store(&ctx)?;

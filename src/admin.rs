@@ -8,7 +8,6 @@ use crate::models::{
 };
 use crate::store::AdminStore;
 use crate::validate::{self, Invalid};
-use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
 
 /// What a handler decided: an HTTP status and the bytes to send with it.
@@ -231,8 +230,8 @@ pub async fn put_locations(store: &impl AdminStore, body: &[u8]) -> Outcome {
 /// One row per known location, with its hike if one is scheduled. A single
 /// prefix list answers "scheduled?" and "has a map?" for every location, so
 /// only the records that actually exist get fetched.
-// @spec HIKE-LIST-001, HIKE-LIST-002, HIKE-LIST-003, HIKE-LIST-004, HIKE-LIST-005, HIKE-STALE-003
-pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome {
+// @spec HIKE-LIST-001, HIKE-LIST-002, HIKE-LIST-003, HIKE-LIST-004, HIKE-LIST-005
+pub async fn list_hikes(store: &impl AdminStore) -> Outcome {
     let locations = match read_locations(store).await {
         Ok(l) => l,
         Err(outcome) => return outcome,
@@ -259,14 +258,8 @@ pub async fn list_hikes(store: &impl AdminStore, now: DateTime<Utc>) -> Outcome 
             short_name: slug.clone(),
             full_name: location.full_name.clone(),
             scheduled: record.is_some(),
-            // Only a scheduled hike can be stale; an empty slot is just empty.
-            stale: record
-                .as_ref()
-                .is_some_and(|r| validate::is_stale(&r.end, now)),
             has_map,
             trail: record.as_ref().and_then(|r| r.trails.first().cloned()),
-            start: record.as_ref().map(|r| r.start.clone()),
-            end: record.map(|r| r.end),
         });
     }
 
@@ -333,8 +326,6 @@ mod tests {
     ]"#;
 
     const REQUEST: &str = r#"{
-        "start":"2026-09-26T09:00:00-05:00",
-        "end":"2026-09-26T11:00:00-05:00",
         "meeting":{"lat":41.855026,"lon":-88.152169},
         "trails":["Purple"]
     }"#;
@@ -356,8 +347,35 @@ mod tests {
 
         let got = get_hike(&store, "cantigny-park").await;
         assert_eq!(got.status, 200);
-        assert_eq!(body_json(&got)["start"], "2026-09-26T09:00:00-05:00");
         assert_eq!(body_json(&got)["id"], "cantigny-park");
+        assert_eq!(body_json(&got)["trails"], serde_json::json!(["Purple"]));
+    }
+
+    /// A record written before this segment dropped `start`/`end` still has
+    /// them in R2. `HikeRecord` isn't `deny_unknown_fields`, so it must keep
+    /// loading — and the next save drops the leftover fields for good.
+    #[tokio::test]
+    // @spec HIKE-REC-011
+    async fn a_legacy_record_with_dates_still_loads_and_resaves_without_them() {
+        let legacy = r#"{
+            "id":"cantigny-park",
+            "start":"2026-09-26T09:00:00-05:00",
+            "end":"2026-09-26T11:00:00-05:00",
+            "meeting":{"lat":41.855026,"lon":-88.152169},
+            "trails":["Purple"],
+            "mapKey":"hikes/cantigny-park/map.png"
+        }"#;
+        let store = seeded().with_json("hikes/cantigny-park.json", legacy);
+
+        let got = get_hike(&store, "cantigny-park").await;
+        assert_eq!(got.status, 200);
+        assert_eq!(body_json(&got)["id"], "cantigny-park");
+
+        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
+        let resaved = store.read("hikes/cantigny-park.json").unwrap();
+        let resaved: serde_json::Value = serde_json::from_str(&resaved).unwrap();
+        assert!(resaved.get("start").is_none());
+        assert!(resaved.get("end").is_none());
     }
 
     /// The stored bytes are what `hike-club-api` reads, so assert on them
@@ -383,15 +401,15 @@ mod tests {
     async fn rescheduling_overwrites_in_place() {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
-        let later = REQUEST.replace("2026-09-26", "2026-10-03");
-        put_hike(&store, "cantigny-park", later.as_bytes()).await;
+        let rescheduled = REQUEST.replace(r#"["Purple"]"#, r#"["Green"]"#);
+        put_hike(&store, "cantigny-park", rescheduled.as_bytes()).await;
 
         assert_eq!(
             store.keys(),
             vec!["hikes/cantigny-park.json", LOCATIONS_KEY]
         );
         let got = get_hike(&store, "cantigny-park").await;
-        assert_eq!(body_json(&got)["start"], "2026-10-03T09:00:00-05:00");
+        assert_eq!(body_json(&got)["trails"], serde_json::json!(["Green"]));
     }
 
     #[tokio::test]
@@ -634,12 +652,6 @@ mod tests {
         );
     }
 
-    fn at(when: &str) -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339(when)
-            .unwrap()
-            .with_timezone(&Utc)
-    }
-
     fn summaries(outcome: &Outcome) -> Vec<serde_json::Value> {
         serde_json::from_slice(&outcome.body).unwrap()
     }
@@ -715,7 +727,7 @@ mod tests {
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
         put_locations(&store, b"[]").await;
 
-        assert!(summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await).is_empty());
+        assert!(summaries(&list_hikes(&store).await).is_empty());
         assert!(store.read("hikes/cantigny-park.json").is_some());
 
         put_locations(&store, LOCATIONS.as_bytes()).await;
@@ -728,14 +740,12 @@ mod tests {
         let store = seeded();
         put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
 
-        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        let rows = summaries(&list_hikes(&store).await);
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["shortName"], "cantigny-park");
         assert_eq!(rows[0]["scheduled"], true);
-        assert_eq!(rows[0]["start"], "2026-09-26T09:00:00-05:00");
         assert_eq!(rows[1]["shortName"], "danada-equestrian-center");
         assert_eq!(rows[1]["scheduled"], false);
-        assert_eq!(rows[1]["start"], serde_json::Value::Null);
     }
 
     /// The row's blaze colour comes from the trail name, so the summary carries
@@ -747,44 +757,20 @@ mod tests {
         let two_trails = REQUEST.replace(r#"["Purple"]"#, r#"["Purple","Green"]"#);
         put_hike(&store, "cantigny-park", two_trails.as_bytes()).await;
 
-        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        let rows = summaries(&list_hikes(&store).await);
         assert_eq!(rows[0]["trail"], "Purple");
         assert_eq!(rows[1]["trail"], serde_json::Value::Null);
-    }
-
-    /// The footgun this whole list exists to surface: a record whose end has
-    /// passed makes the public API serve the *last* hike's observed weather as
-    /// though it were current, silently.
-    #[tokio::test]
-    // @spec HIKE-STALE-001
-    async fn list_flags_a_record_whose_end_has_passed() {
-        let store = seeded();
-        put_hike(&store, "cantigny-park", REQUEST.as_bytes()).await;
-
-        let before = summaries(&list_hikes(&store, at("2026-09-26T15:59:59Z")).await);
-        assert_eq!(before[0]["stale"], false);
-
-        let after = summaries(&list_hikes(&store, at("2026-09-26T16:00:01Z")).await);
-        assert_eq!(after[0]["stale"], true);
-    }
-
-    #[tokio::test]
-    // @spec HIKE-STALE-003
-    async fn an_unscheduled_location_is_never_stale() {
-        let rows = summaries(&list_hikes(&seeded(), at("2099-01-01T00:00:00Z")).await);
-        assert_eq!(rows[0]["scheduled"], false);
-        assert_eq!(rows[0]["stale"], false);
     }
 
     #[tokio::test]
     // @spec HIKE-LIST-002
     async fn list_reports_whether_a_map_is_uploaded() {
         let store = seeded();
-        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        let rows = summaries(&list_hikes(&store).await);
         assert_eq!(rows[0]["hasMap"], false);
 
         put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
-        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        let rows = summaries(&list_hikes(&store).await);
         assert_eq!(rows[0]["hasMap"], true);
     }
 
@@ -795,7 +781,7 @@ mod tests {
     async fn a_map_alone_does_not_count_as_a_scheduled_hike() {
         let store = seeded();
         put_map(&store, "cantigny-park", Some("image/png"), PNG.to_vec()).await;
-        let rows = summaries(&list_hikes(&store, at("2026-09-20T00:00:00Z")).await);
+        let rows = summaries(&list_hikes(&store).await);
         assert_eq!(rows[0]["scheduled"], false);
         assert_eq!(rows[0]["hasMap"], true);
     }
@@ -806,7 +792,7 @@ mod tests {
         let store = InMemoryStore::failing();
         assert_eq!(get_locations(&store).await.status, 502);
         assert_eq!(put_locations(&store, b"[]").await.status, 502);
-        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+        assert_eq!(list_hikes(&store).await.status, 502);
     }
 
     #[tokio::test]
@@ -814,14 +800,14 @@ mod tests {
     async fn corrupt_stored_locations_are_502() {
         let store = InMemoryStore::new().with_json(LOCATIONS_KEY, "{oops");
         assert_eq!(get_locations(&store).await.status, 502);
-        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+        assert_eq!(list_hikes(&store).await.status, 502);
     }
 
     #[tokio::test]
     // @spec HIKE-LIST-004
     async fn a_corrupt_record_fails_the_list_rather_than_lying_about_it() {
         let store = seeded().with_json("hikes/cantigny-park.json", "{oops");
-        assert_eq!(list_hikes(&store, Utc::now()).await.status, 502);
+        assert_eq!(list_hikes(&store).await.status, 502);
     }
 
     #[tokio::test]

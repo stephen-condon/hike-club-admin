@@ -16,8 +16,6 @@ pub struct MeetingCoords {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HikeRecord {
     pub id: String,
-    pub start: String,
-    pub end: String,
     pub meeting: MeetingCoords,
     pub trails: Vec<String>,
     #[serde(rename = "mapKey")]
@@ -50,10 +48,8 @@ impl HikeRecord {
 /// unexpected field keeps a readable record readable.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-// @spec TRUST-006, CONTRACT-010
+// @spec TRUST-006, CONTRACT-010, HIKE-REC-011
 pub struct HikeRequest {
-    pub start: String,
-    pub end: String,
     pub meeting: MeetingCoords,
     pub trails: Vec<String>,
 }
@@ -78,10 +74,6 @@ pub struct HikeSummary {
     #[serde(rename = "fullName")]
     pub full_name: String,
     pub scheduled: bool,
-    /// The record's `end` is in the past. Such a record makes the public API
-    /// serve the *last* hike's observed weather as though it were current, so
-    /// the UI flags it rather than letting it fail silently.
-    pub stale: bool,
     #[serde(rename = "hasMap")]
     pub has_map: bool,
     /// The record's first trail. Trail blazes are painted in the trail's own
@@ -89,10 +81,6 @@ pub struct HikeSummary {
     /// this to colour the row — which saves a GET per location too.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end: Option<String>,
 }
 
 /// One slug with stored objects but no entry in the location mapping. Its

@@ -6,7 +6,6 @@
 //! The limits below are mirrored in `openapi.yaml`; `tests/contract.rs` asserts
 //! the spec is at least as strict as this module so the two can't drift.
 use crate::models::{HikeLocation, HikeRecord, HikeRequest, MeetingCoords};
-use chrono::{DateTime, Utc};
 
 /// Matches `Slug.maxLength` in openapi.yaml.
 pub const MAX_SLUG_LEN: usize = 64;
@@ -87,12 +86,6 @@ pub fn validate_known_slug(slug: &str, locations: &[HikeLocation]) -> Checked<()
     Ok(())
 }
 
-fn parse_rfc3339(label: &str, value: &str) -> Checked<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|d| d.with_timezone(&Utc))
-        .map_err(|_| Invalid::bad_request(format!("{label} must be an RFC 3339 timestamp")))
-}
-
 fn validate_meeting(meeting: &MeetingCoords) -> Checked<()> {
     if !meeting.lat.is_finite() || !(-90.0..=90.0).contains(&meeting.lat) {
         return Err(Invalid::bad_request(
@@ -134,7 +127,7 @@ fn validate_trails(trails: &[String]) -> Checked<()> {
 /// `id` and `map_key` come from the *path* slug, never from the body — that's
 /// why [`HikeRequest`] has no such fields. A client cannot point a write at an
 /// object other than its own location's.
-// @spec HIKE-REC-003, HIKE-REC-004, HIKE-REC-005, HIKE-REC-006, HIKE-REC-007, TRUST-005, TRUST-007
+// @spec HIKE-REC-003, HIKE-REC-005, HIKE-REC-006, HIKE-REC-007, HIKE-REC-011, TRUST-005, TRUST-007
 pub fn build_record(
     slug: &str,
     request: &HikeRequest,
@@ -142,18 +135,11 @@ pub fn build_record(
 ) -> Checked<HikeRecord> {
     validate_known_slug(slug, locations)?;
 
-    let start = parse_rfc3339("start", &request.start)?;
-    let end = parse_rfc3339("end", &request.end)?;
-    if end <= start {
-        return Err(Invalid::bad_request("end must be after start"));
-    }
     validate_meeting(&request.meeting)?;
     validate_trails(&request.trails)?;
 
     Ok(HikeRecord {
         id: slug.to_string(),
-        start: request.start.clone(),
-        end: request.end.clone(),
         meeting: request.meeting.clone(),
         trails: request
             .trails
@@ -238,16 +224,6 @@ pub fn validate_map_upload(content_type: Option<&str>, len: usize) -> Checked<()
     Ok(())
 }
 
-/// Whether a record's `end` has already passed. An unparseable `end` counts as
-/// stale: something is wrong with it either way, and the UI should say so.
-// @spec HIKE-STALE-001, HIKE-STALE-002
-pub fn is_stale(end: &str, now: DateTime<Utc>) -> bool {
-    match DateTime::parse_from_rfc3339(end) {
-        Ok(end) => end.with_timezone(&Utc) < now,
-        Err(_) => true,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,8 +243,6 @@ mod tests {
 
     fn request() -> HikeRequest {
         HikeRequest {
-            start: "2026-09-26T09:00:00-05:00".to_string(),
-            end: "2026-09-26T11:00:00-05:00".to_string(),
             meeting: MeetingCoords {
                 lat: 41.855_026,
                 lon: -88.152_169,
@@ -342,7 +316,6 @@ mod tests {
     fn builds_a_record_from_a_valid_request() {
         let record = build_record("cantigny-park", &request(), &locations()).unwrap();
         assert_eq!(record.id, "cantigny-park");
-        assert_eq!(record.start, "2026-09-26T09:00:00-05:00");
         assert_eq!(record.trails, vec!["Purple".to_string()]);
     }
 
@@ -363,42 +336,6 @@ mod tests {
         req.trails = vec!["  Purple  ".to_string()];
         let record = build_record("cantigny-park", &req, &locations()).unwrap();
         assert_eq!(record.trails, vec!["Purple".to_string()]);
-    }
-
-    #[test]
-    // @spec HIKE-REC-004
-    fn rejects_unparseable_timestamps() {
-        let mut req = request();
-        req.start = "2026-09-26 09:00".to_string();
-        let err = build_record("cantigny-park", &req, &locations()).unwrap_err();
-        assert!(err.message.contains("start"));
-
-        let mut req = request();
-        req.end = "next saturday".to_string();
-        let err = build_record("cantigny-park", &req, &locations()).unwrap_err();
-        assert!(err.message.contains("end"));
-    }
-
-    #[test]
-    // @spec HIKE-REC-004
-    fn rejects_end_before_or_equal_to_start() {
-        let mut req = request();
-        req.end = req.start.clone();
-        assert!(build_record("cantigny-park", &req, &locations()).is_err());
-
-        let mut req = request();
-        req.end = "2026-09-26T08:00:00-05:00".to_string();
-        assert!(build_record("cantigny-park", &req, &locations()).is_err());
-    }
-
-    /// Offsets differ but the instants are two hours apart, which is what counts.
-    #[test]
-    // @spec HIKE-REC-004
-    fn compares_timestamps_as_instants_not_strings() {
-        let mut req = request();
-        req.start = "2026-09-26T14:00:00Z".to_string();
-        req.end = "2026-09-26T11:00:00-05:00".to_string();
-        assert!(build_record("cantigny-park", &req, &locations()).is_ok());
     }
 
     #[test]
@@ -537,22 +474,5 @@ mod tests {
             413
         );
         assert!(validate_map_upload(Some("image/png"), MAX_MAP_BYTES).is_ok());
-    }
-
-    #[test]
-    // @spec HIKE-STALE-001
-    fn staleness_turns_over_exactly_at_end() {
-        let now = DateTime::parse_from_rfc3339("2026-09-26T11:00:00-05:00")
-            .unwrap()
-            .with_timezone(&Utc);
-        assert!(!is_stale("2026-09-26T11:00:00-05:00", now), "end == now");
-        assert!(!is_stale("2026-09-26T11:00:01-05:00", now));
-        assert!(is_stale("2026-09-26T10:59:59-05:00", now));
-    }
-
-    #[test]
-    // @spec HIKE-STALE-002
-    fn an_unparseable_end_counts_as_stale() {
-        assert!(is_stale("whenever", Utc::now()));
     }
 }

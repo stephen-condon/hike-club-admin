@@ -46,14 +46,6 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
 
-/* The hero: which preserve is next, and how long you have. */
-.next { padding: 1rem 0 2rem; border-bottom: 2px solid var(--ink); }
-.next h1 { font-size: clamp(2.2rem, 8vw, 3.4rem); line-height: 1.05; font-weight: 800; }
-.next .when { margin: 0.6rem 0 0; font-size: 1.05rem; color: var(--sage); }
-.next .countdown { font-weight: 600; color: var(--moss); }
-.next .countdown.late { color: var(--alert); }
-.next p.empty { margin: 0.5rem 0 0; font-size: 1.1rem; color: var(--sage); max-width: 34rem; }
-
 ul { list-style: none; margin: 0; padding: 0; }
 .row {
   display: grid;
@@ -73,7 +65,6 @@ ul { list-style: none; margin: 0; padding: 0; }
 .row > div { padding: 0.9rem 0; }
 .place { font-weight: 500; }
 .detail { font-size: 0.95rem; color: var(--sage); }
-.detail.stale { color: var(--alert); }
 .detail.unset { color: var(--amber); }
 .chevron { color: var(--sage); padding-right: 0.25rem; }
 
@@ -94,7 +85,7 @@ dialog::backdrop { background: rgba(10, 20, 12, 0.5); }
 .sheet h2 { font-size: 1.5rem; margin-bottom: 1.25rem; }
 label { display: block; margin-bottom: 1rem; font-size: 0.9rem; color: var(--sage); }
 label span { display: block; margin-bottom: 0.3rem; }
-input[type=date], input[type=time], input[type=text], input[type=number] {
+input[type=text], input[type=number] {
   width: 100%;
   padding: 0.55rem 0.6rem;
   border: 1px solid var(--rule);
@@ -133,8 +124,6 @@ input[type=date], input[type=time], input[type=text], input[type=number] {
 </head>
 <body>
 <main>
-  <section class="next" id="next" aria-live="polite"></section>
-
   <div class="bar">
     <h2 id="all-hikes">All locations</h2>
     <button class="link" id="edit-locations">Edit locations</button>
@@ -152,13 +141,6 @@ input[type=date], input[type=time], input[type=text], input[type=number] {
 <dialog id="hike-sheet">
   <form class="sheet" method="dialog" id="hike-form">
     <h2 id="hike-title"></h2>
-    <div class="pair">
-      <label><span>Date</span><input type="date" id="f-date" required></label>
-      <div class="pair">
-        <label><span>Start</span><input type="time" id="f-start" required></label>
-        <label><span>End</span><input type="time" id="f-end" required></label>
-      </div>
-    </div>
     <label><span>Trails</span><input type="text" id="f-trails" placeholder="Purple, Green" required></label>
     <div class="pair">
       <label><span>Meeting latitude</span><input type="number" id="f-lat" step="any" min="-90" max="90" required></label>
@@ -223,101 +205,7 @@ function say(element, message, bad) {
   element.classList.toggle("bad", Boolean(bad));
 }
 
-// The stored offset is the hike's own local offset, so read the wall-clock
-// parts straight out of the string rather than shifting them into this browser.
-// @spec HIKE-UI-005
-const datePart = (t) => t.slice(0, 10);
-const timePart = (t) => t.slice(11, 16);
-
-// @spec HIKE-UI-004
-function rfc3339(date, time) {
-  const offset = -new Date(`${date}T${time}:00`).getTimezoneOffset();
-  const sign = offset < 0 ? "-" : "+";
-  const abs = Math.abs(offset);
-  const pad = (n) => String(Math.floor(n)).padStart(2, "0");
-  return `${date}T${time}:00${sign}${pad(abs / 60)}:${pad(abs % 60)}`;
-}
-
-function readable(hike) {
-  const day = new Date(hike.start).toLocaleDateString(undefined, {
-    weekday: "long", month: "long", day: "numeric",
-  });
-  const hours = `${timePart(hike.start)} to ${timePart(hike.end)}`;
-  return `${day}, ${hours}`;
-}
-
-// Whole days between a past instant and today's midnight.
-function daysSince(when) {
-  const midnight = new Date();
-  midnight.setHours(0, 0, 0, 0);
-  return Math.round((midnight - new Date(when)) / 86400000);
-}
-
-function daysAway(hike) {
-  const midnight = new Date();
-  midnight.setHours(0, 0, 0, 0);
-  const start = new Date(hike.start);
-  return Math.round((start - midnight) / 86400000);
-}
-
-// @spec HIKE-UI-001, HIKE-UI-002, HIKE-UI-007
-function renderNext() {
-  const scheduled = hikes.filter((h) => h.scheduled);
-  const upcoming = scheduled
-    .filter((h) => !h.stale)
-    .sort((a, b) => a.start.localeCompare(b.start))[0];
-  const section = $("next");
-  section.replaceChildren();
-
-  if (!upcoming) {
-    // A stale record is worse than an empty slate: the public API is serving
-    // its observed weather as a forecast right now, so it takes the hero.
-    const stale = scheduled
-      .filter((h) => h.stale)
-      .sort((a, b) => b.end.localeCompare(a.end))[0];
-
-    if (stale) {
-      const heading = document.createElement("h1");
-      heading.textContent = stale.fullName;
-      const when = document.createElement("p");
-      when.className = "when";
-      when.textContent = readable(stale) + " ";
-      const ago = daysSince(stale.end);
-      const flag = document.createElement("span");
-      flag.className = "countdown late";
-      flag.textContent =
-        (ago === 0 ? "ended today" : ago === 1 ? "ended yesterday" : `ended ${ago} days ago`) +
-        " — still being served as the next hike";
-      when.append(flag);
-      section.append(heading, when);
-      return;
-    }
-
-    const heading = document.createElement("h1");
-    heading.textContent = "No hike scheduled";
-    const hint = document.createElement("p");
-    hint.className = "empty";
-    hint.textContent = hikes.length
-      ? "Pick a location below to set the next date."
-      : "Add a location first, then schedule a hike there.";
-    section.append(heading, hint);
-    return;
-  }
-
-  const heading = document.createElement("h1");
-  heading.textContent = upcoming.fullName;
-  const when = document.createElement("p");
-  when.className = "when";
-  when.textContent = readable(upcoming) + " ";
-  const away = daysAway(upcoming);
-  const count = document.createElement("span");
-  count.className = "countdown";
-  count.textContent = away === 0 ? "today" : away === 1 ? "tomorrow" : `in ${away} days`;
-  when.append(count);
-  section.append(heading, when);
-}
-
-// @spec HIKE-LIST-003, HIKE-STALE-004
+// @spec HIKE-LIST-003
 function renderList() {
   const list = $("list");
   list.replaceChildren();
@@ -341,12 +229,9 @@ function renderList() {
     detail.className = "detail";
     if (!hike.scheduled) {
       detail.classList.add("unset");
-      detail.textContent = "No date set";
-    } else if (hike.stale) {
-      detail.classList.add("stale");
-      detail.textContent = `${readable(hike)} — already past, needs a new date`;
+      detail.textContent = "Not scheduled";
     } else {
-      detail.textContent = readable(hike);
+      detail.textContent = "Scheduled";
     }
     text.append(place, detail);
 
@@ -388,7 +273,6 @@ function renderOrphans() {
 async function load() {
   try {
     [hikes, orphans] = await Promise.all([api("/api/hikes"), api("/api/orphans")]);
-    renderNext();
     renderList();
     renderOrphans();
     say(statusNote, "");
@@ -397,7 +281,7 @@ async function load() {
   }
 }
 
-// @spec HIKE-UI-003, MAP-011
+// @spec MAP-011
 async function openHike(hike) {
   editing = hike;
   $("hike-title").textContent = hike.fullName;
@@ -405,12 +289,6 @@ async function openHike(hike) {
   $("remove-map").hidden = !hike.hasMap;
   say($("hike-note"), "");
   $("f-file").value = "";
-
-  const saturday = new Date();
-  saturday.setDate(saturday.getDate() + ((6 - saturday.getDay() + 7) % 7 || 7));
-  $("f-date").value = hike.scheduled ? datePart(hike.start) : saturday.toISOString().slice(0, 10);
-  $("f-start").value = hike.scheduled ? timePart(hike.start) : "09:00";
-  $("f-end").value = hike.scheduled ? timePart(hike.end) : "11:00";
 
   const map = $("f-map");
   map.hidden = !hike.hasMap;
@@ -441,8 +319,6 @@ async function saveHike() {
   say(note, "Saving…");
 
   const body = {
-    start: rfc3339($("f-date").value, $("f-start").value),
-    end: rfc3339($("f-date").value, $("f-end").value),
     meeting: { lat: Number($("f-lat").value), lon: Number($("f-lon").value) },
     trails: $("f-trails").value.split(",").map((t) => t.trim()).filter(Boolean),
   };

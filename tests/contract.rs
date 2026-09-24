@@ -3,6 +3,7 @@
 //! read-only one doesn't — that the spec's own constraints are at least as
 //! strict as `validate.rs`. A limit tightened in one place and not the other
 //! fails here. Runs in-process: no network, no deployed worker.
+// @spec CONTRACT-009
 use hike_club_admin::models::{
     ErrorBody, HikeLocation, HikeRecord, HikeRequest, HikeSummary, MeetingCoords,
 };

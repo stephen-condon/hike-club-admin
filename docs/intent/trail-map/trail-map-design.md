@@ -40,7 +40,7 @@ nothing — asserted at `admin.rs:468-474,482-505`.
 `GET /api/map/{slug}` returns the stored bytes unaltered with
 `content-type: image/png`, or 404 when the location has no map. The admin page
 shows the preview only when the summary row says `hasMap`, and appends a
-timestamp query parameter (`index.html:342`) so a replaced map is displayed
+timestamp query parameter (`index.html` `openHike`) so a replaced map is displayed
 rather than the browser's cached copy.
 
 ## Removal
@@ -80,7 +80,7 @@ so it is the one destructive action in the tool that asks.
    (`admin.rs:448-460` asserts both directions).
 2. ✅ The upload statuses stay distinct, and the admin page does not branch on
    them. 415, 413 and 400 exist so the response names the actual reason; the
-   page surfaces whichever message comes back (`index.html:199-205`). The only
+   page surfaces whichever message comes back (`index.html` `api`). The only
    status the page distinguishes is 204.
 
 3. ✅ A trail map can now be deleted (MAP-012 to MAP-015), including one

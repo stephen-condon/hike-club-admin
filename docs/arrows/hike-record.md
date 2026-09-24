@@ -34,9 +34,9 @@ page's hero (removed) needs one.
 - `src/validate.rs:131-150` — `build_record`
 - `src/models.rs:11-42` — `HikeRecord`, `HikeRequest`
 - `src/models.rs:71-79` — `HikeSummary`
-- `src/index.html:141-158` — scheduling sheet markup
-- `src/index.html:209-241` — list rendering
-- `src/index.html:285-370` — open, save, unschedule
+- `src/index.html` `<dialog id="hike-sheet">` — scheduling sheet markup
+- `src/index.html` `renderList` — list rendering
+- `src/index.html` `openHike`, `saveHike`, `unschedule` — open, save, unschedule
 
 ## Architecture
 
@@ -50,8 +50,8 @@ records where a hike meets and which trails it walks.
    custody; delete is record-only by design.
 3. `list_hikes` (`admin.rs:234`) — the derived read: one prefix listing plus
    record fetches only where a key exists.
-4. Scheduling sheet and list (`index.html:141-158,209-241`) — authoring
-   surface.
+4. Scheduling sheet and list (`index.html` `#hike-sheet`, `renderList`) —
+   authoring surface.
 
 ## Spec Coverage
 
@@ -59,9 +59,9 @@ records where a hike meets and which trails it walks.
 |----------|----------|-------------|----------|------|
 | Record lifecycle | HIKE-REC-001 to -011 | 10 | 0 | 0 |
 | Summary listing | HIKE-LIST-001 to -005 | 5 | 0 | 0 |
-| Authoring UI | HIKE-UI-006 | 1 | 0 | 0 |
+| Authoring UI | HIKE-UI-006, HIKE-UI-008 | 2 | 0 | 0 |
 
-**Summary:** 16 of 16 active specs implemented; 0 deferred.
+**Summary:** 17 of 17 active specs implemented; 0 deferred.
 
 ## Key Findings
 
@@ -79,10 +79,10 @@ records where a hike meets and which trails it walks.
    against `now`, so the segment lost them rather than finding a replacement.
 4. **View state is off the model** — row elements live in a slug-to-element
    `Map` (`index.html`), not on the fetched summary objects.
-5. **One spec has no test citing it** — HIKE-UI-006 describes admin-page
-   behavior, and the project has no JavaScript test harness. It is annotated
-   in `src/index.html` and marked `[x]` on observed behavior, not on test
-   coverage.
+5. **Two specs have no test citing them** — HIKE-UI-006 and HIKE-UI-008
+   describe admin-page behavior, and the project has no JavaScript test
+   harness. Both are annotated in `src/index.html` and marked `[x]` on
+   observed behavior, not on test coverage.
 
 ## Work Required
 
@@ -93,5 +93,5 @@ _None._
 _None._
 
 ### Nice to Have
-1. HIKE-UI-006 stays untested until the project grows a JavaScript test
-   harness — a real trade against a codebase with no bundler.
+1. HIKE-UI-006 and HIKE-UI-008 stay untested until the project grows a
+   JavaScript test harness — a real trade against a codebase with no bundler.

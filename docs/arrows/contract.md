@@ -75,8 +75,10 @@ spec and router, this repo and `hike-club-api`.
    (`contract.rs:321,332`). Crude by admission, and it needs no Workers runtime.
 6. **`nullable` desugaring is hand-rolled** (`contract.rs:17-34`) because
    OpenAPI 3.0's `nullable` is not a JSON Schema keyword.
-7. **CONTRACT-009 has no citation at all** — that the suite runs in-process is
-   a property of how it is written, not something any test asserts.
+7. **CONTRACT-009 is cited on the suite, not on a test** — that the suite runs
+   in-process is a property of how it is written (no networking dev-dependency,
+   in-memory `AdminStore`), so `@spec CONTRACT-009` sits on the `contract.rs`
+   module header rather than on an assertion.
 
 ## Work Required
 

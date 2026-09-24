@@ -27,3 +27,4 @@ and the authoring surface. Prefix `HIKE`; see `hike-record-design.md`.
 ## Authoring Surface
 
 - [x] **HIKE-UI-006**: When a hike is saved successfully, the admin page shall briefly highlight that location's row, except where the viewer has requested reduced motion.
+- [x] **HIKE-UI-008**: The admin page shall follow the viewer's light or dark colour-scheme preference.

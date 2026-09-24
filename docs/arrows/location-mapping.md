@@ -33,8 +33,9 @@ orphaning.
 - `src/validate.rs:159-193` — `validate_locations`
 - `src/models.rs:51-61` — `HikeLocation`, `LOCATIONS_KEY`
 - `src/admin.rs:247-292` — `list_orphans`
-- `src/index.html:410-465` — locations editor, `short_name` locked on existing rows
-- `src/index.html:316-338` — the "Left behind" section
+- `src/index.html` `locationRow`, `openLocations`, `saveLocations` — locations
+  editor, `short_name` locked on existing rows
+- `src/index.html` `renderOrphans` — the "Left behind" section
 
 ## Architecture
 
@@ -47,7 +48,8 @@ security allowlist.
 2. `read_locations` (`admin.rs:65`) — the absent-means-empty rule every other
    handler depends on.
 3. `put_locations` (`admin.rs:185`) — whole-list replacement.
-4. Locations editor (`index.html:410-465`) — add/remove rows, save the list.
+4. Locations editor (`index.html` `locationRow`, `saveLocations`) — add/remove
+   rows, save the list.
 
 ## Spec Coverage
 

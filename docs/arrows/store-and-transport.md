@@ -54,9 +54,9 @@ storage failure one honest vocabulary.
 |----------|----------|-------------|----------|------|
 | Storage seam | STORE-001 to -005 | 5 | 0 | 0 |
 | Failure vocabulary | STORE-006 to -009, -014, -015 | 6 | 0 | 0 |
-| Transport | STORE-010 to -013 | 4 | 0 | 0 |
+| Transport | STORE-010 to -013, -016 | 5 | 0 | 0 |
 
-**Summary:** 15 of 15 active specs implemented; 0 deferred.
+**Summary:** 16 of 16 active specs implemented; 0 deferred.
 
 ## Key Findings
 
@@ -82,7 +82,10 @@ storage failure one honest vocabulary.
    loop is unreachable through the fake; STORE-002 and -010 are structural,
    proven by the suite's existence rather than by an assertion; STORE-008's
    fallback cannot be reached, since serializing owned types does not fail;
-   STORE-015 is admin-page behavior with no JavaScript harness.
+   STORE-015 is admin-page behavior with no JavaScript harness. STORE-016 is
+   the exception among the admin-page specs: it constrains the page's source
+   rather than its behavior, so `tests/contract.rs` asserts it over the
+   `include_str!`-ed file with no browser.
 
 ## Work Required
 

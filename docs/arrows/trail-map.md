@@ -28,8 +28,8 @@ map stranded by a removed location can now be cleared.
 - `src/admin.rs:136-173` — `get_map`, `put_map`
 - `src/validate.rs:195-227` — `validate_map_upload`
 - `src/models.rs:33-38` — `map_key_for`
-- `src/index.html:158` — file input and preview element
-- `src/index.html:340-342,381-388` — preview load, upload on save
+- `src/index.html` `#f-file`, `#f-map` — file input and preview element
+- `src/index.html` `openHike`, `saveHike` — preview load, upload on save
 
 ## Architecture
 
@@ -40,7 +40,7 @@ when the hike is.
 1. `validate_map_upload` (`validate.rs:197`) — type and size gate; the only
    place in the codebase that returns 415 or 413.
 2. `put_map` / `get_map` (`admin.rs:136-173`) — custody of the image object.
-3. Preview and file input (`index.html:158,340-342`) — cache-busted so a
+3. Preview and file input (`index.html` `#f-map`, `openHike`) — cache-busted so a
    replacement is visible immediately.
 
 ## Spec Coverage
@@ -63,7 +63,7 @@ when the hike is.
    415 for the wrong type, 413 for too large, 400 for empty, so the response
    names the actual reason. The admin page does not branch on them: every
    error reaches the admin as `body.error` through one path
-   (`index.html:199-205`). The only status the page distinguishes is 204.
+   (`index.html` `api`). The only status the page distinguishes is 204.
 3. **5 MB ceiling is sized from real data** — `validate.rs:19` records that
    existing maps run 280 KB to 1.1 MB.
 4. **Content-type parameters tolerated** — `image/PNG; charset=binary` passes

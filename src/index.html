@@ -4,121 +4,280 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hike Club</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&display=swap" rel="stylesheet">
 <style>
-/* Forest-preserve signage: routed green boards, sand lettering, and the painted
-   trail blaze that marks a route on a tree. Each row wears its trail's blaze
-   colour, taken from the trail name itself. */
+/* Forest-preserve signage in a Material key: tonal surfaces instead of drop
+   shadows, and the painted trail blaze that marks a route on a tree. Each row
+   wears its trail's blaze colour, taken from the trail name itself.
+   @spec HIKE-UI-008 */
 :root {
-  --paper: #f1f4ef;
-  --card: #ffffff;
-  --ink: #16231b;
-  --moss: #2f5d3f;
-  --sage: #6f8472;
-  --rule: #d8e0d6;
-  --alert: #a63a1c;
-  --amber: #b5842a;
+  --surface: #fcfdf7;
+  --surface-container: #f0f4ec;
+  --surface-container-high: #eaefe5;
+  --surface-container-highest: #e4e9df;
+  --on-surface: #191d17;
+  --on-surface-variant: #43483f;
+  --outline: #73796e;
+  --outline-variant: #c3c8bc;
+  --primary: #2f5d3f;
+  --on-primary: #ffffff;
+  --primary-container: #b4f0c2;
+  --on-primary-container: #00210e;
+  --tertiary-container: #ffdea6;
+  --on-tertiary-container: #291800;
+  --error: #8f4b34;
+  --error-container: #ffdbd0;
+  --on-error-container: #3a0b00;
+  --scrim: rgba(10, 20, 12, 0.4);
+
+  /* Blaze colours are decorative, but they still have to be seen, so each
+     scheme gets its own set rather than one set washing out on the other. */
+  --blaze-purple: #6b4a9e;
+  --blaze-green: #2f7d46;
+  --blaze-blue: #2a5ea8;
+  --blaze-red: #b3332c;
+  --blaze-yellow: #c99a1f;
+  --blaze-orange: #d2742a;
+  --blaze-brown: #7a5a3c;
+  --blaze-white: #bfc6bd;
+  --blaze-black: #2b332c;
+  --blaze-pink: #c9628e;
+  --blaze-silver: #9aa5a0;
+  --blaze-gray: #8b958f;
+  --blaze-grey: #8b958f;
+  --blaze-tan: #b89a66;
+
+  --shape-xs: 4px;
+  --shape-sm: 8px;
+  --shape-md: 12px;
+  --shape-lg: 16px;
+  --shape-xl: 28px;
+  --shape-full: 999px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 200ms;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #12180f;
-    --card: #1a2118;
-    --ink: #e7ece4;
-    --moss: #8fc19c;
-    --sage: #91a494;
-    --rule: #2b3529;
-    --alert: #e8865f;
-    --amber: #d9ab4e;
+    --surface: #10140f;
+    --surface-container: #1c211a;
+    --surface-container-high: #262b24;
+    --surface-container-highest: #31362e;
+    --on-surface: #e1e5db;
+    --on-surface-variant: #c3c8bc;
+    --outline: #8d9387;
+    --outline-variant: #43483f;
+    --primary: #98d4a7;
+    --on-primary: #00391b;
+    --primary-container: #14522a;
+    --on-primary-container: #b4f0c2;
+    --tertiary-container: #5b4200;
+    --on-tertiary-container: #ffdea6;
+    --error: #ffb5a0;
+    --error-container: #723520;
+    --on-error-container: #ffdbd0;
+    --scrim: rgba(0, 0, 0, 0.6);
+
+    --blaze-purple: #b49ce6;
+    --blaze-green: #6ec57f;
+    --blaze-blue: #8db4ee;
+    --blaze-red: #f08a7c;
+    --blaze-yellow: #e8c765;
+    --blaze-orange: #eea36a;
+    --blaze-brown: #c3a183;
+    --blaze-white: #f2f4ef;
+    --blaze-black: #6a7169;
+    --blaze-pink: #eda0bf;
+    --blaze-silver: #c2ccc6;
+    --blaze-gray: #b3bcb6;
+    --blaze-grey: #b3bcb6;
+    --blaze-tan: #dcc7a3;
   }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 400 16px/1.5 Archivo, system-ui, sans-serif;
+  background: var(--surface);
+  color: var(--on-surface);
+  font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-main { max-width: 46rem; margin: 0 auto; padding: 2rem 1rem 5rem; }
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+main { max-width: 60rem; margin: 0 auto; padding: 2.5rem 1rem 5rem; }
+h1, h2, h3 { margin: 0; font-weight: 500; }
 button, input, select { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+/* Material's state layer: a tinted overlay at a fixed opacity, rather than a
+   separate hover colour per component. */
+.row, .link, .primary, .ghost { position: relative; overflow: hidden; }
+.row::before, .link::before, .primary::before, .ghost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+}
+.row:hover::before, .link:hover::before,
+.primary:hover::before, .ghost:hover::before { opacity: 0.08; }
+.row:focus-visible::before, .link:focus-visible::before,
+.primary:focus-visible::before, .ghost:focus-visible::before { opacity: 0.12; }
+.row > *, .link > *, .primary > *, .ghost > * { position: relative; }
+
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 2.5rem 0 0.75rem; }
+.bar h2 { font-size: 1rem; font-weight: 600; letter-spacing: 0.01em; color: var(--on-surface-variant); }
+.link {
+  background: none;
+  border: 0;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--shape-full);
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* The location list is one filled card; rows are Material two-line list items. */
 ul { list-style: none; margin: 0; padding: 0; }
+#list, #orphan-list {
+  background: var(--surface-container);
+  border-radius: var(--shape-md);
+  overflow: hidden;
+}
 .row {
   display: grid;
-  grid-template-columns: 6px 1fr auto;
-  gap: 0 1rem;
+  grid-template-columns: 1.25rem 1fr auto;
+  gap: 0 0.75rem;
   align-items: center;
   width: 100%;
+  min-height: 4.5rem;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--rule);
   background: none;
   text-align: left;
   cursor: pointer;
+  color: var(--on-surface);
 }
-.row:hover .place, .row:focus-visible .place { color: var(--moss); }
-.blaze { align-self: stretch; background: var(--rule); }
+li + li .row { box-shadow: inset 0 1px 0 var(--outline-variant); }
+.blaze {
+  width: 4px;
+  margin: 1rem auto;
+  align-self: stretch;
+  border-radius: var(--shape-full);
+  background: var(--outline-variant);
+}
+/* The list card clips to its radius, which would cut an outset focus ring off
+   at the card edge, so a row draws its own ring inside itself. */
+.row:focus-visible { outline-offset: -3px; }
 .row > div { padding: 0.9rem 0; }
-.place { font-weight: 500; }
-.detail { font-size: 0.95rem; color: var(--sage); }
-.detail.unset { color: var(--amber); }
-.chevron { color: var(--sage); padding-right: 0.25rem; }
-
-.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin: 2.5rem 0 0.5rem; }
-.bar h2 { font-size: 1.1rem; }
-.link { background: none; border: 0; padding: 0; color: var(--moss); font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.place { font-size: 1rem; }
+.detail { font-size: 0.875rem; color: var(--on-surface-variant); margin-top: 0.15rem; }
+.detail.unset {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--shape-full);
+  background: var(--tertiary-container);
+  color: var(--on-tertiary-container);
+  font-size: 0.8125rem;
+}
+.chevron { color: var(--on-surface-variant); padding-right: 0.9rem; }
 
 dialog {
   width: min(34rem, calc(100vw - 2rem));
   padding: 0;
   border: 0;
-  border-radius: 4px;
-  background: var(--card);
-  color: var(--ink);
+  border-radius: var(--shape-xl);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
 }
-dialog::backdrop { background: rgba(10, 20, 12, 0.5); }
-.sheet { padding: 1.5rem; }
-.sheet h2 { font-size: 1.5rem; margin-bottom: 1.25rem; }
-label { display: block; margin-bottom: 1rem; font-size: 0.9rem; color: var(--sage); }
-label span { display: block; margin-bottom: 0.3rem; }
+dialog::backdrop { background: var(--scrim); }
+.sheet { display: flex; flex-direction: column; max-height: min(85vh, 44rem); }
+.sheet-head { padding: 1.5rem 1.5rem 0.5rem; }
+.sheet-head h2 { font-size: 1.375rem; line-height: 1.3; }
+.sheet-body { overflow-y: auto; padding: 1rem 1.5rem 0; }
+
+label { display: block; margin-bottom: 1rem; }
+label span {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--on-surface-variant);
+}
+/* Material filled text field. The label sits above rather than floating into
+   the box: a floating label keys off :placeholder-shown, which a number or
+   file input never reports. */
 input[type=text], input[type=number] {
   width: 100%;
-  padding: 0.55rem 0.6rem;
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  background: var(--paper);
-}
-.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.75rem; }
-.map { width: 100%; border: 1px solid var(--rule); border-radius: 3px; display: block; }
-.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1.5rem; }
-.primary {
-  padding: 0.6rem 1.1rem;
+  padding: 0.7rem 0.75rem;
   border: 0;
-  border-radius: 3px;
-  background: var(--moss);
-  color: var(--paper);
-  font-weight: 600;
+  border-radius: var(--shape-xs) var(--shape-xs) 0 0;
+  background: var(--surface-container-highest);
+  box-shadow: inset 0 -1px 0 var(--outline);
+}
+input[type=text]:focus, input[type=number]:focus {
+  outline: 0;
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+input[type=file] { width: 100%; font-size: 0.875rem; color: var(--on-surface-variant); }
+input[type=file]::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-full);
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
 }
-.primary[disabled] { opacity: 0.5; cursor: default; }
-.ghost { padding: 0.6rem 0.9rem; border: 1px solid var(--rule); border-radius: 3px; background: none; cursor: pointer; }
-.danger { color: var(--alert); border-color: transparent; }
-.spacer { flex: 1; }
-.note { margin: 0.75rem 0 0; font-size: 0.9rem; color: var(--sage); min-height: 1.4em; }
-.note.bad { color: var(--alert); }
-.loc-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
-.loc-row input { margin: 0; }
-.loc-row input[readonly] { background: none; color: var(--sage); border-style: dashed; }
-.orphan { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--rule); font-size: 0.95rem; }
-.orphan .slug { font-family: ui-monospace, monospace; }
-@media (prefers-reduced-motion: no-preference) {
-  .saved { animation: flash 900ms ease-out; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.map { width: 100%; margin-bottom: 0.5rem; border: 1px solid var(--outline-variant); border-radius: var(--shape-md); display: block; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 1rem 1.5rem 1.5rem; }
+.primary {
+  padding: 0.625rem 1.5rem;
+  border: 0;
+  border-radius: var(--shape-full);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
 }
-@keyframes flash { from { background: color-mix(in srgb, var(--moss) 22%, transparent); } to { background: none; } }
+.primary[disabled] { opacity: 0.4; cursor: default; }
+.ghost {
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-full);
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.danger { color: var(--error); border-color: transparent; }
+.spacer { flex: 1; }
+.note { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--on-surface-variant); min-height: 1.4em; }
+.note.bad { color: var(--error); }
+#status { padding: 0 0.25rem; }
+
+.loc-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center; }
+.loc-row input { margin: 0; }
+.loc-row input[readonly] { background: none; color: var(--on-surface-variant); box-shadow: inset 0 -1px 0 var(--outline-variant); }
+.loc-row .ghost { padding: 0.5rem 1rem; }
+
+.orphan { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 1rem; font-size: 0.9rem; }
+li + li .orphan { box-shadow: inset 0 1px 0 var(--outline-variant); }
+.orphan .slug { font-family: ui-monospace, monospace; }
+
+/* @spec HIKE-UI-006 */
+@media (prefers-reduced-motion: no-preference) {
+  .saved { animation: flash 900ms var(--ease); }
+  .row::before, .link::before, .primary::before, .ghost::before,
+  input[type=text], input[type=number] { transition: opacity var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+}
+@keyframes flash { from { background: var(--primary-container); } to { background: transparent; } }
 @media (max-width: 30rem) { .pair, .loc-row { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -140,7 +299,8 @@ input[type=text], input[type=number] {
 
 <dialog id="hike-sheet">
   <form class="sheet" method="dialog" id="hike-form">
-    <h2 id="hike-title"></h2>
+    <header class="sheet-head"><h2 id="hike-title"></h2></header>
+    <div class="sheet-body">
     <label><span>Trails</span><input type="text" id="f-trails" placeholder="Purple, Green" required></label>
     <div class="pair">
       <label><span>Meeting latitude</span><input type="number" id="f-lat" step="any" min="-90" max="90" required></label>
@@ -148,6 +308,7 @@ input[type=text], input[type=number] {
     </div>
     <label><span>Trail map</span><img class="map" id="f-map" alt="" hidden><input type="file" id="f-file" accept="image/png"></label>
     <p class="note" id="hike-note"></p>
+    </div>
     <div class="actions">
       <button class="primary" id="save-hike" value="save">Save hike</button>
       <button class="ghost" value="cancel" formnovalidate>Cancel</button>
@@ -160,10 +321,12 @@ input[type=text], input[type=number] {
 
 <dialog id="loc-sheet">
   <form class="sheet" method="dialog" id="loc-form">
-    <h2>Locations</h2>
+    <header class="sheet-head"><h2>Locations</h2></header>
+    <div class="sheet-body">
     <div id="loc-rows"></div>
     <button class="ghost" type="button" id="add-loc">Add a location</button>
     <p class="note" id="loc-note">A location has to be listed here before you can schedule a hike there.</p>
+    </div>
     <div class="actions">
       <button class="primary" value="save">Save locations</button>
       <button class="ghost" value="cancel" formnovalidate>Cancel</button>
@@ -175,12 +338,15 @@ input[type=text], input[type=number] {
 // Trail blazes are painted on trees in the trail's own colour, and the club's
 // trails are named for those colours, so a row wears the blaze of its first
 // trail. Anything that isn't a colour gets the preserve green.
-const BLAZE = {
-  purple: "#6b4a9e", green: "#2f7d46", blue: "#2a5ea8", red: "#b3332c",
-  yellow: "#d8a72c", orange: "#d2742a", brown: "#7a5a3c", white: "#d9ded7",
-  black: "#2b332c", pink: "#c9628e", silver: "#9aa5a0", gray: "#8b958f",
-  grey: "#8b958f", tan: "#c0a678",
-};
+//
+// The colours themselves are --blaze-* custom properties, so each scheme can
+// carry its own set. This is the allowlist, and a trail name is only ever
+// interpolated into a var() after passing it — the name comes from stored
+// record text, which has no business naming an arbitrary property.
+const BLAZE = new Set([
+  "purple", "green", "blue", "red", "yellow", "orange", "brown",
+  "white", "black", "pink", "silver", "gray", "grey", "tan",
+]);
 
 const $ = (id) => document.getElementById(id);
 const statusNote = $("status");
@@ -219,7 +385,8 @@ function renderList() {
 
     const blaze = document.createElement("div");
     blaze.className = "blaze";
-    blaze.style.background = BLAZE[(hike.trail || "").toLowerCase()] || "var(--moss)";
+    const trail = (hike.trail || "").toLowerCase();
+    blaze.style.background = BLAZE.has(trail) ? `var(--blaze-${trail})` : "var(--primary)";
 
     const text = document.createElement("div");
     const place = document.createElement("div");

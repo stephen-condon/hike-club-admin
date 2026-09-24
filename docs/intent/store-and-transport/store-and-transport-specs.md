@@ -26,3 +26,4 @@ and HTTP translation. Prefix `STORE`; see `store-and-transport-design.md`.
 - [x] **STORE-011**: When translating a handler result into an HTTP response, the system shall set the content type the handler chose.
 - [x] **STORE-012**: The system shall serve the admin page from a single HTML file compiled into the binary, without a bundler or a static-assets binding.
 - [x] **STORE-013**: The system shall expose a health endpoint that responds without touching storage.
+- [x] **STORE-016**: The admin page shall reference no third-party origin, so rendering it requires no network request outside the Worker.

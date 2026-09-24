@@ -34,8 +34,9 @@ behind Cloudflare Access.
 
 ## Tenets
 
-*(not yet specified — tenets are elicited, not assumed. Surface the decisions
-that could reasonably go more than one way and record the user's preference.)*
+- Presentation is hand-rolled. Prefer native CSS and system fonts over a UI
+  framework or a hosted asset, even where the framework would be faster to
+  adopt.
 
 ## System Design
 

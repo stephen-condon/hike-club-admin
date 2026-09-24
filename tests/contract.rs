@@ -354,3 +354,28 @@ fn the_router_and_the_spec_describe_the_same_routes() {
         expected.len()
     );
 }
+
+/// The admin page is served from a binary that sits behind Cloudflare Access.
+/// A third-party asset — a font, an icon set, a script — would be fetched by
+/// the viewer's browser from outside that perimeter, so the page carries none.
+///
+/// The check is deliberately blunt: no `://` anywhere in the file. Same-origin
+/// references (`/api/map/{slug}`) are relative and pass; a URL written in a
+/// comment would fail. If a comment ever genuinely needs one, narrow this to
+/// scan `href`/`src` attribute values rather than loosening it.
+// @spec STORE-016
+#[test]
+fn admin_page_references_no_third_party_origin() {
+    const INDEX_HTML: &str = include_str!("../src/index.html");
+
+    let offenders: Vec<&str> = INDEX_HTML
+        .lines()
+        .filter(|line| line.contains("://"))
+        .collect();
+
+    assert!(
+        offenders.is_empty(),
+        "the admin page must reference no third-party origin, but found:\n{}",
+        offenders.join("\n")
+    );
+}
